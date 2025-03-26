@@ -1,68 +1,101 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Cute Bunny Game</title>
+<title>Cute Bunny's House Visit</title>
 <meta charset="UTF-8">
 <style>
     body {
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 100vh;
+        min-height: 100vh; /* Use min-height for flexibility */
         margin: 0;
         background-color: #f0f8ff; /* Light sky blue background */
-        font-family: sans-serif;
+        font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif; /* Cuter font */
         flex-direction: column; /* Stack canvas and instructions */
+        padding: 20px; /* Add some padding */
+        box-sizing: border-box;
     }
     canvas {
-        border: 1px solid #000;
-        background-color: #90ee90; /* Light green grass area */
+        border: 2px solid #663300; /* Darker brown border */
+        border-radius: 10px; /* Rounded corners for the canvas */
+        background-color: #90ee90; /* Light green grass area - default */
+        box-shadow: 5px 5px 10px rgba(0,0,0,0.2); /* Add a subtle shadow */
     }
     #instructions {
-        margin-top: 10px;
-        color: #333;
+        margin-top: 15px;
+        color: #555;
+        font-size: 1.1em;
+        text-align: center;
+    }
+    /* Add a little heart emoji for cuteness */
+    #instructions::before {
+        content: '💖 ';
     }
 </style>
 </head>
 <body>
 
-<canvas id="gameCanvas" width="800" height="400"></canvas>
-<div id="instructions">
-    Use Left/Right Arrow keys to move. Press Spacebar to Jump. Enter a house door!
+<canvas id="gameCanvas" width="800" height="450"></canvas> <div id="instructions">
+    Use Left/Right Arrows to move. Press Spacebar to Jump. Go to a house door!
 </div>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
+    // Game States: 'outside', 'inside'
+    let gameState = 'outside';
+    let currentHouseIndex = -1; // Which house are we in?
+    let insideTimer = 0; // How long to stay inside
+    const INSIDE_DURATION = 180; // Frames (approx 3 seconds at 60fps)
+
     // Game Constants
     const GRAVITY = 0.5;
-    const JUMP_FORCE = -10;
-    const MOVE_SPEED = 3;
-    const GROUND_Y = canvas.height - 50; // Ground level
+    const JUMP_FORCE = -11; // Slightly stronger jump
+    const MOVE_SPEED = 3.5; // Slightly faster move
+    const GROUND_Y = canvas.height - 60; // Adjusted ground level
 
-    // Bunny State
+    // Bunny State (with cuter additions)
     let bunny = {
         x: 50,
-        y: GROUND_Y - 40, // Start slightly above ground
-        width: 30,
-        height: 40,
+        y: GROUND_Y - 45, // Start slightly above ground
+        width: 35,
+        height: 45,
         vx: 0, // Velocity X
         vy: 0, // Velocity Y
         isJumping: false,
-        color: '#d2b48c' // Tan color
+        color: '#EAD9C9', // Lighter, softer tan
+        earColor: '#F5C8C1', // Pinkish inner ear
+        noseColor: '#FFB6C1', // Light pink nose
+        eyeColor: '#444444', // Dark grey eyes
+        tailSize: 8
     };
 
-    // Houses State (simple objects with position and size)
+    // Houses State (added interior colors)
     let houses = [
-        { x: 200, y: GROUND_Y - 100, width: 100, height: 100, doorX: 235, doorWidth: 30, color: '#ffb6c1' }, // Light Pink
-        { x: 500, y: GROUND_Y - 120, width: 120, height: 120, doorX: 540, doorWidth: 40, color: '#add8e6' }  // Light Blue
+        { x: 200, y: GROUND_Y - 110, width: 110, height: 110, doorX: 240, doorWidth: 35, color: '#FFDAB9', roofColor: '#CD853F', doorColor: '#A0522D', interiorColor: '#FFF8DC', itemColor: '#87CEEB' }, // Peach house, Cornsilk interior, SkyBlue item
+        { x: 550, y: GROUND_Y - 130, width: 130, height: 130, doorX: 590, doorWidth: 45, color: '#ADD8E6', roofColor: '#8B4513', doorColor: '#6B4423', interiorColor: '#E6E6FA', itemColor: '#98FB98' }  // Light Blue house, Lavender interior, PaleGreen item
     ];
 
-    // Game Message
-    let message = {
-        text: "",
-        timer: 0
+    // Human Figure (simple)
+    let human = {
+        x: 0, // Will be set based on house
+        y: GROUND_Y - 80,
+        width: 40,
+        height: 80,
+        headRadius: 20,
+        color: '#FFC0CB', // Pink clothes
+        skinColor: '#FFE4C4' // Bisque skin
+    };
+
+    // Feeding animation state
+    let feedingHeart = {
+        show: false,
+        x: 0,
+        y: 0,
+        size: 15,
+        color: 'red'
     };
 
     // Input State
@@ -73,17 +106,82 @@
 
     // --- Drawing Functions ---
 
+    function drawSkyAndSun() {
+        // Gradient sky
+        let skyGradient = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+        skyGradient.addColorStop(0, '#87CEEB'); // Sky Blue
+        skyGradient.addColorStop(1, '#ADD8E6'); // Lighter Blue near horizon
+        ctx.fillStyle = skyGradient;
+        ctx.fillRect(0, 0, canvas.width, GROUND_Y);
+
+        // Simple Sun
+        ctx.fillStyle = '#FFD700'; // Gold
+        ctx.beginPath();
+        ctx.arc(canvas.width - 80, 80, 30, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawGround() {
+        ctx.fillStyle = '#90EE90'; // Light Green
+        ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+        // Add some grass blades for texture
+        ctx.fillStyle = '#6B8E23'; // Olive Drab
+        for (let i = 0; i < canvas.width; i += 15) {
+            ctx.fillRect(i + Math.random() * 10, GROUND_Y - 5 + Math.random() * 5, 2, 10);
+        }
+    }
+
     function drawBunny() {
+        // Tail (draw first so body overlaps)
+        ctx.fillStyle = '#FFFFFF'; // White tail
+        ctx.beginPath();
+        ctx.arc(bunny.x, bunny.y + bunny.height * 0.7, bunny.tailSize, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Body (rounded rectangle)
         ctx.fillStyle = bunny.color;
-        // Body
-        ctx.fillRect(bunny.x, bunny.y, bunny.width, bunny.height);
-        // Ears (simple rectangles)
-        ctx.fillRect(bunny.x + 5, bunny.y - 15, 5, 15);
-        ctx.fillRect(bunny.x + bunny.width - 10, bunny.y - 15, 5, 15);
-        // Simple face (eyes)
-        ctx.fillStyle = 'black';
-        ctx.fillRect(bunny.x + 8, bunny.y + 10, 4, 4);
-        ctx.fillRect(bunny.x + bunny.width - 12, bunny.y + 10, 4, 4);
+        ctx.beginPath();
+        ctx.roundRect(bunny.x, bunny.y, bunny.width, bunny.height, [10]); // Use roundRect if available
+        ctx.fill();
+
+        // Ears (also rounded)
+        const earWidth = 8;
+        const earHeight = 20;
+        // Outer ear
+        ctx.fillStyle = bunny.color;
+        ctx.beginPath();
+        ctx.roundRect(bunny.x + 7, bunny.y - earHeight + 5, earWidth, earHeight, [5]);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(bunny.x + bunny.width - 7 - earWidth, bunny.y - earHeight + 5, earWidth, earHeight, [5]);
+        ctx.fill();
+        // Inner ear
+        ctx.fillStyle = bunny.earColor;
+        ctx.beginPath();
+        ctx.roundRect(bunny.x + 7 + 1, bunny.y - earHeight + 7, earWidth - 2, earHeight - 4, [4]);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(bunny.x + bunny.width - 7 - earWidth + 1, bunny.y - earHeight + 7, earWidth - 2, earHeight - 4, [4]);
+        ctx.fill();
+
+
+        // Eyes (larger dots)
+        ctx.fillStyle = bunny.eyeColor;
+        ctx.beginPath();
+        ctx.arc(bunny.x + 12, bunny.y + 15, 3, 0, Math.PI * 2); // Left eye
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(bunny.x + bunny.width - 12, bunny.y + 15, 3, 0, Math.PI * 2); // Right eye
+        ctx.fill();
+
+        // Nose (small triangle/dot)
+        ctx.fillStyle = bunny.noseColor;
+        ctx.beginPath();
+        ctx.arc(bunny.x + bunny.width / 2, bunny.y + 22, 3, 0, Math.PI * 2);
+        // ctx.moveTo(bunny.x + bunny.width / 2 - 3, bunny.y + 23); // Triangle alternative
+        // ctx.lineTo(bunny.x + bunny.width / 2 + 3, bunny.y + 23);
+        // ctx.lineTo(bunny.x + bunny.width / 2, bunny.y + 26);
+        ctx.fill();
     }
 
     function drawHouses() {
@@ -92,40 +190,179 @@
             ctx.fillStyle = house.color;
             ctx.fillRect(house.x, house.y, house.width, house.height);
             // Roof (simple triangle)
-            ctx.fillStyle = '#a0522d'; // Sienna color for roof
+            ctx.fillStyle = house.roofColor;
             ctx.beginPath();
-            ctx.moveTo(house.x, house.y);
-            ctx.lineTo(house.x + house.width / 2, house.y - house.height / 2);
-            ctx.lineTo(house.x + house.width, house.y);
+            ctx.moveTo(house.x - 10, house.y); // Overhang
+            ctx.lineTo(house.x + house.width / 2, house.y - house.height / 1.8); // Taller roof
+            ctx.lineTo(house.x + house.width + 10, house.y); // Overhang
             ctx.closePath();
             ctx.fill();
-            // Door
-            ctx.fillStyle = '#8b4513'; // Saddle brown for door
-            ctx.fillRect(house.doorX, house.y + house.height * 0.4, house.doorWidth, house.height * 0.6);
+            // Door (slightly rounded)
+            ctx.fillStyle = house.doorColor;
+            ctx.beginPath();
+            // Manually draw rounded top rectangle for door if roundRect not fully supported everywhere
+            const doorY = house.y + house.height * 0.35;
+            const doorH = house.height * 0.65;
+            const doorR = 5; // Radius
+            ctx.moveTo(house.doorX + doorR, doorY);
+            ctx.lineTo(house.doorX + house.doorWidth - doorR, doorY);
+            ctx.arcTo(house.doorX + house.doorWidth, doorY, house.doorX + house.doorWidth, doorY + doorR, doorR);
+            ctx.lineTo(house.doorX + house.doorWidth, doorY + doorH);
+            ctx.lineTo(house.doorX, doorY + doorH);
+            ctx.lineTo(house.doorX, doorY + doorR);
+            ctx.arcTo(house.doorX, doorY, house.doorX + doorR, doorY, doorR);
+            ctx.closePath();
+            ctx.fill();
+            // Doorknob
+            ctx.fillStyle = '#FFD700'; // Gold knob
+            ctx.beginPath();
+            ctx.arc(house.doorX + house.doorWidth - 10, doorY + doorH / 2, 3, 0, Math.PI * 2);
+            ctx.fill();
         });
     }
 
-    function drawGround() {
-        ctx.fillStyle = '#8b4513'; // Brown color for ground
+    function drawInterior(house) {
+        // Background wall
+        ctx.fillStyle = house.interiorColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Floor
+        ctx.fillStyle = '#D2B48C'; // Tan floor
         ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+
+        // Draw some simple items based on house index or randomly
+        ctx.fillStyle = house.itemColor;
+        if (currentHouseIndex === 0) {
+            // Simple table
+            ctx.fillRect(canvas.width * 0.6, GROUND_Y - 60, 100, 15); // Tabletop
+            ctx.fillRect(canvas.width * 0.6 + 10, GROUND_Y - 45, 10, 45); // Leg 1
+            ctx.fillRect(canvas.width * 0.6 + 80, GROUND_Y - 45, 10, 45); // Leg 2
+            // Simple window
+            ctx.fillStyle = '#ADD8E6'; // Light blue window pane
+            ctx.fillRect(canvas.width * 0.1, canvas.height * 0.2, 80, 60);
+             ctx.strokeStyle = '#8B4513'; // Brown frame
+             ctx.lineWidth = 5;
+             ctx.strokeRect(canvas.width * 0.1, canvas.height * 0.2, 80, 60);
+        } else {
+            // Simple chair
+            ctx.fillRect(canvas.width * 0.2, GROUND_Y - 70, 50, 15); // Seat
+            ctx.fillRect(canvas.width * 0.2 + 5, GROUND_Y - 55, 10, 55); // Leg 1
+            ctx.fillRect(canvas.width * 0.2 + 35, GROUND_Y - 55, 10, 55); // Leg 2
+            ctx.fillRect(canvas.width * 0.2, GROUND_Y - 110, 10, 40); // Back rest 1
+            ctx.fillRect(canvas.width * 0.2 + 40, GROUND_Y - 110, 10, 40); // Back rest 2
+            ctx.fillRect(canvas.width * 0.2, GROUND_Y - 115, 50, 10); // Back rest top
+            // Simple Picture Frame
+            ctx.fillStyle = '#DEB887'; // BurlyWood frame
+            ctx.fillRect(canvas.width * 0.7, canvas.height * 0.25, 60, 80);
+            ctx.fillStyle = '#FFFFFF'; // White picture area
+            ctx.fillRect(canvas.width * 0.7 + 5, canvas.height * 0.25 + 5, 50, 70);
+        }
     }
 
-    function drawMessage() {
-        if (message.timer > 0) {
-            ctx.fillStyle = 'red';
-            ctx.font = '24px Arial';
+    function drawHuman(house) {
+        // Position human relative to the center/side
+        human.x = canvas.width * 0.4;
+        human.y = GROUND_Y - human.height;
+
+        // Body
+        ctx.fillStyle = human.color;
+        ctx.fillRect(human.x, human.y + human.headRadius * 1.5, human.width, human.height);
+
+        // Head
+        ctx.fillStyle = human.skinColor;
+        ctx.beginPath();
+        ctx.arc(human.x + human.width / 2, human.y + human.headRadius, human.headRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Simple face (eyes and smile)
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc(human.x + human.width / 2 - 7, human.y + human.headRadius - 2, 3, 0, Math.PI * 2); // Left eye
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(human.x + human.width / 2 + 7, human.y + human.headRadius - 2, 3, 0, Math.PI * 2); // Right eye
+        ctx.fill();
+        // Smile
+        ctx.beginPath();
+        ctx.arc(human.x + human.width / 2, human.y + human.headRadius + 5, 8, 0, Math.PI, false);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Simple arm (can be animated later)
+         ctx.fillStyle = human.skinColor;
+         ctx.fillRect(human.x - 10, human.y + human.headRadius * 1.8, 10, 40); // Arm body side
+    }
+
+     function drawBunnyInside() {
+        // Draw bunny sitting near the human
+        let insideBunnyX = human.x + human.width + 20;
+        let insideBunnyY = GROUND_Y - bunny.height;
+
+         // Tail (draw first)
+        ctx.fillStyle = '#FFFFFF'; // White tail
+        ctx.beginPath();
+        ctx.arc(insideBunnyX, insideBunnyY + bunny.height * 0.7, bunny.tailSize, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Body (rounded rectangle)
+        ctx.fillStyle = bunny.color;
+        ctx.beginPath();
+        ctx.roundRect(insideBunnyX, insideBunnyY, bunny.width, bunny.height, [10]);
+        ctx.fill();
+
+         // Ears (slightly different position maybe?)
+        const earWidth = 8;
+        const earHeight = 20;
+        ctx.fillStyle = bunny.color;
+        ctx.beginPath(); ctx.roundRect(insideBunnyX + 7, insideBunnyY - earHeight + 5, earWidth, earHeight, [5]); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(insideBunnyX + bunny.width - 7 - earWidth, insideBunnyY - earHeight + 5, earWidth, earHeight, [5]); ctx.fill();
+        ctx.fillStyle = bunny.earColor;
+        ctx.beginPath(); ctx.roundRect(insideBunnyX + 7 + 1, insideBunnyY - earHeight + 7, earWidth - 2, earHeight - 4, [4]); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(insideBunnyX + bunny.width - 7 - earWidth + 1, insideBunnyY - earHeight + 7, earWidth - 2, earHeight - 4, [4]); ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = bunny.eyeColor;
+        ctx.beginPath(); ctx.arc(insideBunnyX + 12, insideBunnyY + 15, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(insideBunnyX + bunny.width - 12, insideBunnyY + 15, 3, 0, Math.PI * 2); ctx.fill();
+
+        // Nose
+        ctx.fillStyle = bunny.noseColor;
+        ctx.beginPath(); ctx.arc(insideBunnyX + bunny.width / 2, insideBunnyY + 22, 3, 0, Math.PI * 2); ctx.fill();
+    }
+
+    function drawFeedingAnimation() {
+        let insideBunnyX = human.x + human.width + 20;
+        let insideBunnyY = GROUND_Y - bunny.height;
+
+        // Draw heart near bunny's face
+        if (feedingHeart.show) {
+            feedingHeart.x = insideBunnyX + bunny.width / 2;
+            feedingHeart.y = insideBunnyY + 15; // Near mouth level
+            ctx.fillStyle = feedingHeart.color;
+            ctx.font = `${feedingHeart.size * 1.5}px Arial`; // Use emoji heart if font supports
             ctx.textAlign = 'center';
-            ctx.fillText(message.text, canvas.width / 2, 50);
-            message.timer--; // Decrease timer each frame
-        } else {
-            message.text = ""; // Clear message when timer runs out
+            // Simple heart shape drawing as fallback:
+             ctx.beginPath();
+             ctx.moveTo(feedingHeart.x, feedingHeart.y - feedingHeart.size / 4);
+             ctx.bezierCurveTo(feedingHeart.x, feedingHeart.y - feedingHeart.size / 2, feedingHeart.x - feedingHeart.size / 2, feedingHeart.y - feedingHeart.size / 2, feedingHeart.x - feedingHeart.size / 2, feedingHeart.y);
+             ctx.bezierCurveTo(feedingHeart.x - feedingHeart.size / 2, feedingHeart.y + feedingHeart.size / 4, feedingHeart.x, feedingHeart.y + feedingHeart.size / 1.5, feedingHeart.x, feedingHeart.y + feedingHeart.size / 1.5); // Pointy bottom
+             ctx.bezierCurveTo(feedingHeart.x, feedingHeart.y + feedingHeart.size / 1.5, feedingHeart.x + feedingHeart.size / 2, feedingHeart.y + feedingHeart.size / 4, feedingHeart.x + feedingHeart.size / 2, feedingHeart.y);
+             ctx.bezierCurveTo(feedingHeart.x + feedingHeart.size / 2, feedingHeart.y - feedingHeart.size / 2, feedingHeart.x, feedingHeart.y - feedingHeart.size / 2, feedingHeart.x, feedingHeart.y - feedingHeart.size / 4);
+             ctx.fill();
+             ctx.closePath();
+
+            // Add "Nom nom!" text
+            ctx.fillStyle = '#444';
+            ctx.font = '18px "Comic Sans MS", cursive';
+            ctx.fillText("Nom nom!", feedingHeart.x, feedingHeart.y - feedingHeart.size);
         }
     }
 
     // --- Game Logic ---
 
-    function update() {
-        // Handle horizontal movement
+    function updateOutside() {
+         // Handle horizontal movement
         bunny.vx = 0;
         if (keys.left) {
             bunny.vx = -MOVE_SPEED;
@@ -155,37 +392,74 @@
         }
 
         // Check for entering houses
-        houses.forEach(house => {
-            // Check if bunny overlaps with the door area horizontally and is near ground
-            if (bunny.x < house.doorX + house.doorWidth &&
-                bunny.x + bunny.width > house.doorX &&
-                bunny.y + bunny.height >= house.y + house.height * 0.4 && // Bunny feet are near door bottom
-                !bunny.isJumping) { // Must be on the ground
-
-                // Show feeding message
-                message.text = "Yummy! <3";
-                message.timer = 120; // Show message for 120 frames (about 2 seconds)
-
-                // Optional: Move bunny slightly away or reset position
-                // bunny.x = 50; // Reset to start
+        houses.forEach((house, index) => {
+            // Check if bunny CENTER overlaps with the door area horizontally and is ON the ground
+            const bunnyCenterX = bunny.x + bunny.width / 2;
+            if (bunnyCenterX > house.doorX &&
+                bunnyCenterX < house.doorX + house.doorWidth &&
+                bunny.y + bunny.height >= GROUND_Y && // On the ground
+                !bunny.isJumping)
+            {
+                // --- ENTER HOUSE ---
+                gameState = 'inside';
+                currentHouseIndex = index;
+                insideTimer = INSIDE_DURATION; // Start timer
+                feedingHeart.show = true; // Start feeding animation
+                // Disable movement keys while inside
+                keys.left = false;
+                keys.right = false;
             }
         });
+    }
+
+    function updateInside() {
+        insideTimer--;
+        // Simple pulsing effect for heart
+        feedingHeart.size = 15 + Math.sin(insideTimer * 0.1) * 3;
+
+        if (insideTimer <= 0) {
+            // --- EXIT HOUSE ---
+            gameState = 'outside';
+            // Place bunny just outside the door it entered
+            let exitHouse = houses[currentHouseIndex];
+            bunny.x = exitHouse.doorX + exitHouse.doorWidth + 5; // Position to the right of the door
+            bunny.y = GROUND_Y - bunny.height; // Ensure on ground
+            bunny.vx = 0;
+            bunny.vy = 0;
+            bunny.isJumping = false;
+            currentHouseIndex = -1;
+            feedingHeart.show = false;
+        }
     }
 
     // --- Game Loop ---
 
     function gameLoop() {
-        // Clear the canvas
+        // Clear the canvas (important!)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw elements
-        drawGround();
-        drawHouses();
-        drawBunny();
-        drawMessage();
+        // Check game state and draw/update accordingly
+        if (gameState === 'outside') {
+            // --- Draw Outside Scene ---
+            drawSkyAndSun();
+            drawGround();
+            drawHouses();
+            drawBunny(); // Draw the movable bunny
 
-        // Update game state
-        update();
+            // --- Update Outside Logic ---
+            updateOutside();
+
+        } else if (gameState === 'inside') {
+            // --- Draw Inside Scene ---
+            let house = houses[currentHouseIndex];
+            drawInterior(house);
+            drawHuman(house);
+            drawBunnyInside(); // Draw the static bunny inside
+            drawFeedingAnimation();
+
+            // --- Update Inside Logic ---
+            updateInside();
+        }
 
         // Request the next frame
         requestAnimationFrame(gameLoop);
@@ -194,17 +468,21 @@
     // --- Event Listeners for Input ---
 
     document.addEventListener('keydown', function(e) {
-        if (e.code === 'ArrowLeft') {
-            keys.left = true;
-        } else if (e.code === 'ArrowRight') {
-            keys.right = true;
-        } else if (e.code === 'Space' && !bunny.isJumping) {
-            bunny.vy = JUMP_FORCE;
-            bunny.isJumping = true;
+        // Only allow movement/jumping when outside
+        if (gameState === 'outside') {
+            if (e.code === 'ArrowLeft') {
+                keys.left = true;
+            } else if (e.code === 'ArrowRight') {
+                keys.right = true;
+            } else if (e.code === 'Space' && !bunny.isJumping) {
+                bunny.vy = JUMP_FORCE;
+                bunny.isJumping = true;
+            }
         }
     });
 
     document.addEventListener('keyup', function(e) {
+        // Always register keyup to prevent stuck keys if state changes
         if (e.code === 'ArrowLeft') {
             keys.left = false;
         } else if (e.code === 'ArrowRight') {
@@ -212,7 +490,25 @@
         }
     });
 
+    // Polyfill for roundRect if needed (basic version)
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            this.beginPath();
+            this.moveTo(x+r, y);
+            this.arcTo(x+w, y,   x+w, y+h, r);
+            this.arcTo(x+w, y+h, x,   y+h, r);
+            this.arcTo(x,   y+h, x,   y,   r);
+            this.arcTo(x,   y,   x+w, y,   r);
+            this.closePath();
+            return this;
+        }
+    }
+
+
     // Start the game loop
+    console.log("Starting Cute Bunny Game for Paul!");
     gameLoop();
 
 </script>
