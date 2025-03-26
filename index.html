@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Bunny Pals' Adventure!</title>
+<title>Bunny Pals' Adventure! (v3.1)</title>
 <meta charset="UTF-8">
 <style>
     body {
@@ -76,7 +76,9 @@
 
     // --- House State ---
     let houses = [
+        // House 1: x: 220, width: 120, doorX: 260, doorWidth: 40. Door Range: 260 to 300
         { x: 220, y: GROUND_Y - 120, width: 120, height: 120, doorX: 260, doorWidth: 40, color: '#FFDAB9', roofColor: '#CD853F', doorColor: '#A0522D', interiorColor: '#FFFACD', itemColor: '#87CEFA', wallPattern: 'dots', interiorDoorX: 30 }, // Lemon Chiffon Int, LightSkyBlue Item
+        // House 2: x: 600, width: 140, doorX: 645, doorWidth: 50. Door Range: 645 to 695
         { x: 600, y: GROUND_Y - 140, width: 140, height: 140, doorX: 645, doorWidth: 50, color: '#ADD8E6', roofColor: '#8B4513', doorColor: '#6B4423', interiorColor: '#F0FFF0', itemColor: '#FFB6C1', wallPattern: 'stripes', interiorDoorX: canvas.width - 30 - 40 } // Honeydew Int, LightPink Item
     ];
      // Add common interior door properties
@@ -118,17 +120,17 @@
         for (let i = 0; i < count; i++) {
             particles.push({
                 x: x, y: y,
-                vx: (Math.random() - 0.5) * 2, // Spread out
-                vy: -Math.random() * 2 - 1,    // Move up initially
-                life: Math.random() * 40 + 20, // Lifetime
+                vx: (Math.random() - 0.5) * 2.5, // Slightly wider spread
+                vy: -Math.random() * 2.5 - 1.5,    // Move up stronger initially
+                life: Math.random() * 50 + 30, // Longer Lifetime
                 color: color,
-                size: Math.random() * 4 + 2,
+                size: Math.random() * 5 + 3, // Slightly larger
                 type: type // 'heart' or 'sparkle'
             });
         }
     }
 
-    // --- Drawing Functions ---
+    // --- Drawing Functions (Mostly unchanged from v3) ---
 
     function drawSkyAndSun() {
         // Gradient sky already set in CSS, could add clouds here
@@ -196,7 +198,10 @@
 
         // Tail (draw first)
         ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath(); ctx.arc(b.x + (b.vx > 0 ? 0 : b.width), b.y + b.height * 0.7 + bob, b.tailSize, 0, Math.PI * 2); ctx.fill();
+        // Position tail based on direction (vx) or default if vx is 0
+        let tailXOffset = (b.vx === 0) ? 0 : (b.vx > 0 ? 0 : b.width); // If moving right (vx>0), tail left. If moving left (vx<0), tail right.
+        ctx.beginPath(); ctx.arc(b.x + tailXOffset, b.y + b.height * 0.7 + bob, b.tailSize, 0, Math.PI * 2); ctx.fill();
+
 
         // Body
         ctx.fillStyle = b.color;
@@ -227,18 +232,19 @@
         let currentEyeSize = eyeSize;
         if (b.blinkTimer <= 10 && b.blinkTimer > 0) { // Blink phase
             currentEyeSize = eyeSize * (Math.abs(b.blinkTimer - 5) / 5) ; // Close and open
-             ctx.lineWidth=1; ctx.strokeStyle=b.eyeColor;
-             ctx.beginPath(); ctx.moveTo(b.x + b.width*0.3 - eyeSize, eyeY); ctx.lineTo(b.x + b.width*0.3 + eyeSize, eyeY); ctx.stroke(); // Draw line when "closed"
-             ctx.beginPath(); ctx.moveTo(b.x + b.width*0.7 - eyeSize, eyeY); ctx.lineTo(b.x + b.width*0.7 + eyeSize, eyeY); ctx.stroke();
+             ctx.lineWidth=1.5; ctx.strokeStyle=b.eyeColor; // Slightly thicker blink line
+             const blinkY = eyeY + currentEyeSize/2; // Adjust line position
+             ctx.beginPath(); ctx.moveTo(b.x + b.width*0.3 - eyeSize, blinkY); ctx.lineTo(b.x + b.width*0.3 + eyeSize, blinkY); ctx.stroke(); // Draw line when "closed"
+             ctx.beginPath(); ctx.moveTo(b.x + b.width*0.7 - eyeSize, blinkY); ctx.lineTo(b.x + b.width*0.7 + eyeSize, blinkY); ctx.stroke();
         } else {
             if(b.blinkTimer <= 0) b.blinkTimer = Math.random() * 150 + 80; // Reset blink timer
             // Draw open eyes
             ctx.beginPath(); ctx.arc(b.x + b.width * 0.3, eyeY, currentEyeSize, 0, Math.PI * 2); ctx.fill();
             ctx.beginPath(); ctx.arc(b.x + b.width * 0.7, eyeY, currentEyeSize, 0, Math.PI * 2); ctx.fill();
             // Eye glint
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.beginPath(); ctx.arc(b.x + b.width * 0.3 + eyeSize*0.3, eyeY - eyeSize*0.3, eyeSize*0.4, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(b.x + b.width * 0.7 + eyeSize*0.3, eyeY - eyeSize*0.3, eyeSize*0.4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; // Brighter glint
+            ctx.beginPath(); ctx.arc(b.x + b.width * 0.3 + eyeSize*0.3, eyeY - eyeSize*0.3, eyeSize*0.5, 0, Math.PI * 2); ctx.fill(); // Slightly larger glint
+            ctx.beginPath(); ctx.arc(b.x + b.width * 0.7 + eyeSize*0.3, eyeY - eyeSize*0.3, eyeSize*0.5, 0, Math.PI * 2); ctx.fill();
         }
 
 
@@ -246,9 +252,9 @@
         ctx.fillStyle = b.noseColor;
         ctx.beginPath();
         const noseY = b.y + b.height * 0.6 + bob;
-        ctx.moveTo(b.x + b.width / 2 - 3, noseY);
-        ctx.lineTo(b.x + b.width / 2 + 3, noseY);
-        ctx.lineTo(b.x + b.width / 2, noseY + 3);
+        ctx.moveTo(b.x + b.width / 2 - 3.5, noseY); // Slightly larger nose
+        ctx.lineTo(b.x + b.width / 2 + 3.5, noseY);
+        ctx.lineTo(b.x + b.width / 2, noseY + 4);
         ctx.fill(); // Cute triangle nose
     }
 
@@ -377,8 +383,8 @@
 
     function drawHuman() {
         // Position human more centrally
-        human.x = canvas.width * 0.45;
-        human.y = GROUND_Y - human.height;
+        human.x = canvas.width * 0.45; // Human X position inside
+        human.y = GROUND_Y - human.height; // Human Y position inside
 
         const bob = Math.sin(performance.now() / 300) * 2; // Gentle idle bob
 
@@ -416,32 +422,27 @@
          if(human.isFeeding){
              ctx.fillStyle = human.skinColor; ctx.beginPath();
              ctx.arc(arm2X + arm2W - 2, armY + 10 + arm2H - 2, 7, 0, Math.PI*2); ctx.fill();
+             // Draw a tiny carrot or heart near hand?
+             ctx.fillStyle = 'red'; // Heart
+             ctx.font = `15px Arial`; ctx.textAlign = 'center';
+             ctx.fillText("❤️", arm2X + arm2W + 5, armY + 10 + arm2H + 5);
          }
     }
 
      function drawBunnyAndSidekickInside(globalTime) {
-        // Draw main bunny near human if not near door
-        let bunnyTargetX = human.x + human.width + 30;
-         // Allow L/R movement inside
-         bunny.vx = 0;
-         if (keys.left) bunny.vx = -MOVE_SPEED * 0.6; // Slower inside
-         if (keys.right) bunny.vx = MOVE_SPEED * 0.6;
-         bunny.x += bunny.vx;
-         // Clamp bunny position inside
-         bunny.x = Math.max(10, Math.min(canvas.width - bunny.width - 10, bunny.x));
-         bunny.y = GROUND_Y - bunny.height; // Always on ground inside
-         bunny.onGround = true; bunny.isJumping = false;
-
+        // Main bunny (movable inside)
         drawSingleBunny(bunny, globalTime);
 
         // Sidekick follows main bunny inside too
         sidekick.targetX = bunny.x + SIDEKICK_OFFSET_X;
         sidekick.targetY = bunny.y + SIDEKICK_OFFSET_Y;
-        sidekick.x += (sidekick.targetX - sidekick.x) * SIDEKICK_FOLLOW_SPEED * 2; // Faster catchup inside
-        sidekick.y = GROUND_Y - sidekick.height; // Always on ground
-        sidekick.onGround = true; sidekick.isJumping = false;
-         // Clamp sidekick position
-         sidekick.x = Math.max(5, Math.min(canvas.width - sidekick.width - 5, sidekick.x));
+        sidekick.x += (sidekick.targetX - sidekick.x) * SIDEKICK_FOLLOW_SPEED * 1.8; // Faster catchup inside
+        sidekick.y = bunny.y; // **FIX:** Make sidekick follow main bunny's Y inside too (for jumps)
+        // Clamp sidekick position
+        sidekick.x = Math.max(5, Math.min(canvas.width - sidekick.width - 5, sidekick.x));
+        sidekick.y = Math.max(0, Math.min(GROUND_Y - sidekick.height, sidekick.y)); // Clamp Y too
+        sidekick.onGround = (sidekick.y + sidekick.height >= GROUND_Y); // Update onGround status
+
         drawSingleBunny(sidekick, globalTime);
     }
 
@@ -451,7 +452,7 @@
             let p = particles[i];
             p.x += p.vx;
             p.y += p.vy;
-            p.vy += 0.05; // Slight gravity on particles
+            p.vy += 0.08; // Slightly stronger gravity on particles
             p.life--;
 
             if (p.life <= 0) {
@@ -459,13 +460,13 @@
                 continue;
             }
 
-            ctx.globalAlpha = Math.max(0, p.life / 30); // Fade out
+            ctx.globalAlpha = Math.max(0, p.life / 40); // Fade out based on remaining life fraction
             ctx.fillStyle = p.color;
 
             if (p.type === 'heart') {
                  // Draw simple heart particle
                  ctx.beginPath();
-                 const s = p.size * (p.life / 30); // Shrink as fades
+                 const s = p.size * Math.min(1, p.life / 20); // Shrink effect
                  ctx.moveTo(p.x, p.y - s / 4);
                  ctx.bezierCurveTo(p.x, p.y - s / 2, p.x - s / 2, p.y - s / 2, p.x - s / 2, p.y);
                  ctx.bezierCurveTo(p.x - s / 2, p.y + s / 4, p.x, p.y + s / 1.5, p.x, p.y + s / 1.5);
@@ -473,7 +474,14 @@
                  ctx.bezierCurveTo(p.x + s / 2, p.y - s / 2, p.x, p.y - s / 2, p.x, p.y - s / 4);
                  ctx.fill(); ctx.closePath();
             } else { // Sparkle
-                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+                // Draw rotating sparkle maybe?
+                const angle = p.life * 0.1;
+                const s = p.size * Math.min(1, p.life / 20); // Shrink
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(angle);
+                ctx.fillRect(-s / 2, -s / 2, s, s);
+                ctx.restore();
             }
             ctx.globalAlpha = 1.0; // Reset alpha
         }
@@ -485,14 +493,20 @@
          // Apply horizontal movement (only for main bunny via keys)
          if (!isSidekick) {
              b.vx = 0;
-             if (keys.left) b.vx = -MOVE_SPEED;
-             if (keys.right) b.vx = MOVE_SPEED;
+             // Apply movement ONLY if NOT inside house (handled separately inside)
+             if (gameState === 'outside') {
+                 if (keys.left) b.vx = -MOVE_SPEED;
+                 if (keys.right) b.vx = MOVE_SPEED;
+             }
          } else {
              // Sidekick follows target X Lerp (Linear Interpolation)
              let targetX = bunny.x + SIDEKICK_OFFSET_X;
              b.x += (targetX - b.x) * SIDEKICK_FOLLOW_SPEED;
          }
-         b.x += b.vx;
+         // Apply horizontal velocity if not inside (inside X movement is direct)
+         if(gameState === 'outside') {
+             b.x += b.vx;
+         }
 
 
         // Apply gravity
@@ -501,25 +515,23 @@
         b.onGround = false;
 
         // Ground collision
-        if (b.y + b.height > GROUND_Y) {
+        if (b.y + b.height >= GROUND_Y) { // Use >= for robustness
             b.y = GROUND_Y - b.height;
             b.vy = 0;
             b.isJumping = false;
             b.onGround = true;
-            // Small dust puff on landing?
-            // if(Math.abs(b.vy) > 2) spawnParticles(b.x + b.width/2, b.y + b.height, 3, 'rgba(139, 69, 19, 0.5)', 'sparkle');
         }
 
-        // Prevent moving off-screen (simple boundary)
+        // Prevent moving off-screen (simple boundary) - Apply always
         if (b.x < 0) b.x = 0;
         if (b.x + b.width > canvas.width) b.x = canvas.width - b.width;
 
-         // Sidekick Y position follows main bunny's Y smoothly
-         if (isSidekick) {
+         // Sidekick Y position follows main bunny's Y smoothly (Only outside, inside Y is handled differently)
+         if (isSidekick && gameState === 'outside') {
               let targetY = Math.max(bunny.y + SIDEKICK_OFFSET_Y, GROUND_Y - b.height); // Follow bunny but stay above ground
               b.y += (targetY - b.y) * SIDEKICK_FOLLOW_SPEED * 1.5; // Follow Y slightly faster
               // Re-check ground collision for sidekick after Y lerp
-              if (b.y + b.height > GROUND_Y) {
+              if (b.y + b.height >= GROUND_Y) {
                  b.y = GROUND_Y - b.height;
                  b.vy = 0; b.isJumping = false; b.onGround = true;
              }
@@ -533,42 +545,76 @@
         // Check for entering houses (Main bunny only)
         houses.forEach((house, index) => {
             const bunnyCenterX = bunny.x + bunny.width / 2;
-            if (bunnyCenterX > house.doorX && bunnyCenterX < house.doorX + house.doorWidth && bunny.onGround)
+            // **FIX: Check if bunny's center is within the door's X range**
+            const doorStartX = house.doorX;
+            const doorEndX = house.doorX + house.doorWidth;
+
+            // // DEBUG LOG (Uncomment to check values when near door 2)
+            // if (index === 1 && Math.abs(bunnyCenterX - (doorStartX + house.doorWidth/2)) < 50) {
+            //    console.log(`House ${index}: BunnyCX=${bunnyCenterX.toFixed(1)}, DoorX=${doorStartX}-${doorEndX}, OnGround=${bunny.onGround}`);
+            // }
+
+            if (bunnyCenterX >= doorStartX && bunnyCenterX <= doorEndX && bunny.onGround)
             {
                 // --- ENTER HOUSE ---
                 gameState = 'inside';
                 currentHouseIndex = index;
                 hasBeenFedThisVisit = false; // Reset feeding flag
                 human.isFeeding = false; // Reset feeding animation state
-                // Position bunny inside near door initially
-                bunny.x = house.interiorDoorX + house.interiorDoorWidth + 20;
+                // Position bunny inside near door initially, facing away from door
+                bunny.x = (house.interiorDoorX < canvas.width / 2) ? house.interiorDoorX + house.interiorDoorWidth + 30 : house.interiorDoorX - bunny.width - 30;
                 bunny.y = GROUND_Y - bunny.height;
-                bunny.vx = 0; bunny.vy = 0; bunny.onGround = true;
+                bunny.vx = 0; bunny.vy = 0; bunny.onGround = true; bunny.isJumping = false; // Reset jump state fully
                  // Position sidekick relative to bunny
-                 sidekick.x = bunny.x + SIDEKICK_OFFSET_X;
+                 sidekick.x = bunny.x + SIDEKICK_OFFSET_X; // Need to check sidekick Offset based on facing dir? No, keep simple.
                  sidekick.y = GROUND_Y - sidekick.height;
-                 sidekick.vx = 0; sidekick.vy = 0; sidekick.onGround = true;
+                 sidekick.vx = 0; sidekick.vy = 0; sidekick.onGround = true; sidekick.isJumping = false;
                  // Disable arrow keys temporarily to avoid instant exit if holding arrow
                  keys.left = false; keys.right = false;
+                 return; // Exit loop once a house is entered
             }
         });
     }
 
     function updateInside() {
-         // Allow main bunny L/R movement (handled in drawBunnyAndSidekickInside via bunny.vx)
+         // --- Physics for Main Bunny Inside (for Jumping) ---
+         bunny.vy += GRAVITY;
+         bunny.y += bunny.vy;
+         bunny.onGround = false; // Assume not on ground unless collision detected
+          if (bunny.y + bunny.height >= GROUND_Y) {
+            bunny.y = GROUND_Y - bunny.height;
+            bunny.vy = 0;
+            bunny.isJumping = false;
+            bunny.onGround = true;
+         }
 
-         // Check collision: Bunny <-> Human (for feeding)
-         if (!hasBeenFedThisVisit &&
-             bunny.x < human.x + human.width &&
-             bunny.x + bunny.width > human.x &&
-             bunny.y + bunny.height > human.y // Check Y overlap (simplified)
-             ) {
+         // Apply horizontal movement based on keys
+         let desiredVX = 0;
+         if (keys.left) desiredVX = -MOVE_SPEED * 0.7; // Slower inside
+         if (keys.right) desiredVX = MOVE_SPEED * 0.7;
+         bunny.x += desiredVX;
+         bunny.vx = desiredVX; // Store current velocity for tail direction etc.
+
+         // Clamp bunny X position inside house boundaries
+         bunny.x = Math.max(10, Math.min(canvas.width - bunny.width - 10, bunny.x));
+         // --- End Physics for Main Bunny ---
+
+
+         // --- Sidekick position update inside is handled in drawBunnyAndSidekickInside ---
+
+         // --- Check collision: Bunny <-> Human (for feeding) ---
+         const bunnyCenterX = bunny.x + bunny.width / 2;
+         // **FIX: Improved Collision Check**
+         const overlapsX = (bunny.x < human.x + human.width && bunny.x + bunny.width > human.x);
+         const overlapsY = (bunny.y < human.y + human.height && bunny.y + bunny.height > human.y);
+
+         if (!hasBeenFedThisVisit && overlapsX && overlapsY) {
                  hasBeenFedThisVisit = true;
                  human.isFeeding = true;
                  human.feedTimer = human.feedDuration;
                  // Spawn heart particles! <3
-                 spawnParticles(bunny.x + bunny.width/2, bunny.y + bunny.height/2, 15, '#FF69B4', 'heart');
-                 spawnParticles(bunny.x + bunny.width/2, bunny.y + bunny.height/2, 5, '#FFDA63', 'sparkle');
+                 spawnParticles(bunny.x + bunny.width/2, bunny.y + bunny.height/2, 20, '#FF69B4', 'heart'); // More particles!
+                 spawnParticles(bunny.x + bunny.width/2, bunny.y + bunny.height/2, 10, '#FFDA63', 'sparkle');
          }
 
          // Update feeding animation timer
@@ -579,21 +625,23 @@
              }
          }
 
-        // Check collision: Bunny <-> Interior Door (for exiting)
+        // --- Check collision: Bunny <-> Interior Door (for exiting) ---
         let house = houses[currentHouseIndex];
+        // Use AABB check for door collision too
         if (bunny.x < house.interiorDoorX + house.interiorDoorWidth &&
             bunny.x + bunny.width > house.interiorDoorX &&
-            bunny.y + bunny.height > house.interiorDoorY // Basic Y check
+            bunny.y < house.interiorDoorY + house.interiorDoorHeight && // Check full Y overlap with door
+            bunny.y + bunny.height > house.interiorDoorY
             ) {
                 // --- EXIT HOUSE ---
                 gameState = 'outside';
                 // Place bunnies just outside the *exterior* door
-                bunny.x = house.doorX + house.doorWidth + 10;
+                bunny.x = house.doorX + house.doorWidth + 10; // Position to the right of the exterior door
                 bunny.y = GROUND_Y - bunny.height;
-                bunny.vx = 0; bunny.vy = 0; bunny.onGround = true;
+                bunny.vx = 0; bunny.vy = 0; bunny.onGround = true; bunny.isJumping = false; // Reset jump state fully
                 sidekick.x = bunny.x + SIDEKICK_OFFSET_X;
                 sidekick.y = GROUND_Y - sidekick.height;
-                sidekick.vx = 0; sidekick.vy = 0; sidekick.onGround = true;
+                sidekick.vx = 0; sidekick.vy = 0; sidekick.onGround = true; sidekick.isJumping = false;
                 currentHouseIndex = -1;
         }
     }
@@ -611,18 +659,20 @@
             drawSkyAndSun();
             drawGroundAndFlowers();
             drawHouses();
+            updateOutside(); // Update physics before drawing outside
             // Draw sidekick first so main bunny overlaps if needed
             drawSingleBunny(sidekick, globalTime);
             drawSingleBunny(bunny, globalTime);
-            updateOutside();
+
 
         } else if (gameState === 'inside') {
             let house = houses[currentHouseIndex];
+            updateInside(); // Update physics and checks first inside
+            // Draw scene
             drawInterior(house);
             drawHuman();
             // Bunnies are drawn/updated together inside
             drawBunnyAndSidekickInside(globalTime);
-            updateInside(); // Handle feeding trigger and exit check
         }
 
          // Update and draw particles regardless of state
@@ -633,21 +683,24 @@
 
     // --- Event Listeners ---
     document.addEventListener('keydown', function(e) {
-        // Allow jump always if on ground, L/R depends on state
+        // Allow jump always if on ground
         if (e.code === 'Space' && bunny.onGround) {
-             if (gameState === 'outside' || (gameState === 'inside' /* && allowJumpInside? No. */ )) {
-                bunny.vy = JUMP_FORCE;
-                bunny.isJumping = true;
-                bunny.onGround = false;
-                // Sidekick jumps too? Maybe slightly delayed or smaller jump?
-                // Let's keep sidekick Y lerping for now, it looks okay.
-             }
+            bunny.vy = JUMP_FORCE;
+            bunny.isJumping = true;
+            bunny.onGround = false; // Set onGround false immediately on jump
+            // Sidekick also attempts jump if on ground (its Y position lerps, so this adds impulse)
+            if(sidekick.onGround){
+                 // Maybe smaller jump for sidekick?
+                 sidekick.vy = JUMP_FORCE * 0.8;
+                 sidekick.isJumping = true;
+                 sidekick.onGround = false;
+            }
         }
 
-        if (gameState === 'outside' || gameState === 'inside') { // Allow L/R inside now
-            if (e.code === 'ArrowLeft') keys.left = true;
-            else if (e.code === 'ArrowRight') keys.right = true;
-        }
+        // Allow L/R movement key state change anytime
+        if (e.code === 'ArrowLeft') keys.left = true;
+        else if (e.code === 'ArrowRight') keys.right = true;
+
     });
 
     document.addEventListener('keyup', function(e) {
@@ -656,29 +709,32 @@
     });
 
     // --- Polyfills (keep for compatibility) ---
-    if (!CanvasRenderingContext2D.prototype.roundRect) { /* ... roundRect code ... */ } // Keep polyfill from V2
+    if (!CanvasRenderingContext2D.prototype.roundRect) { /* ... roundRect code ... */ } // Keep polyfill from V2/V3
      if (!CanvasRenderingContext2D.prototype.roundRect) {
         CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-            // Basic Polyfill - handles single radius object or number
             if (typeof r === 'number') { r = [r, r, r, r]; }
             else if (Array.isArray(r)) { if(r.length === 1) r = [r[0],r[0],r[0],r[0]]; }
-            else { r = [0,0,0,0];} // Default no radius
+            else if(!Array.isArray(r) || r.length !== 4) { r = [0,0,0,0];}
 
-            if (w < 2 * Math.max(r[0],r[1])) r[0]=r[1]=w/2; // Ensure radius isn't too big
-            if (h < 2 * Math.max(r[0],r[3])) r[0]=r[3]=h/2;
-            if (w < 2 * Math.max(r[2],r[3])) r[2]=r[3]=w/2;
-            if (h < 2 * Math.max(r[1],r[2])) r[1]=r[2]=h/2;
+            const radii = {tl: r[0], tr: r[1], br: r[2], bl: r[3]};
+            // Clamp radii
+            const maxTL = Math.max(0, Math.min(radii.tl, w/2, h/2)); const maxTR = Math.max(0, Math.min(radii.tr, w/2, h/2));
+            const maxBR = Math.max(0, Math.min(radii.br, w/2, h/2)); const maxBL = Math.max(0, Math.min(radii.bl, w/2, h/2));
 
             this.beginPath();
-            this.moveTo(x+r[0], y);
-            this.arcTo(x+w, y,   x+w, y+h, r[1]);
-            this.arcTo(x+w, y+h, x,   y+h, r[2]);
-            this.arcTo(x,   y+h, x,   y,   r[3]);
-            this.arcTo(x,   y,   x+w, y,   r[0]);
+            this.moveTo(x + maxTL, y);
+            this.lineTo(x + w - maxTR, y);
+            this.arcTo(x + w, y, x + w, y + maxTR, maxTR);
+            this.lineTo(x + w, y + h - maxBR);
+            this.arcTo(x + w, y + h, x + w - maxBR, y + h, maxBR);
+            this.lineTo(x + maxBL, y + h);
+            this.arcTo(x, y + h, x, y + h - maxBL, maxBL);
+            this.lineTo(x, y + maxTL);
+            this.arcTo(x, y, x + maxTL, y, maxTL);
             this.closePath();
             return this;
         }
-    }
+     }
      if (!CanvasRenderingContext2D.prototype.ellipse) { // Basic ellipse polyfill
         CanvasRenderingContext2D.prototype.ellipse = function(x, y, radiusX, radiusY, rotation, startAngle, endAngle, antiClockwise) {
             this.save();
@@ -692,7 +748,7 @@
 
 
     // --- Start Game ---
-    console.log("Starting Bunny Pals Adventure! Cuteness Overload!");
+    console.log("Starting Bunny Pals Adventure! v3.1 (Debugged)");
     requestAnimationFrame(gameLoop); // Use rAF for first call too
 
 </script>
