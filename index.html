@@ -1,43 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Cute Bunny's House Visit</title>
+<title>Bunny Pals' Adventure!</title>
 <meta charset="UTF-8">
 <style>
     body {
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 100vh; /* Use min-height for flexibility */
+        min-height: 100vh;
         margin: 0;
-        background-color: #f0f8ff; /* Light sky blue background */
-        font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif; /* Cuter font */
-        flex-direction: column; /* Stack canvas and instructions */
-        padding: 20px; /* Add some padding */
+        background: linear-gradient(to bottom, #a8e0ff, #f0f8ff); /* Softer sky gradient */
+        font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif;
+        flex-direction: column;
+        padding: 15px;
         box-sizing: border-box;
+        overflow: hidden; /* Hide scrollbars if canvas is slightly too big */
     }
     canvas {
-        border: 2px solid #663300; /* Darker brown border */
-        border-radius: 10px; /* Rounded corners for the canvas */
-        background-color: #90ee90; /* Light green grass area - default */
-        box-shadow: 5px 5px 10px rgba(0,0,0,0.2); /* Add a subtle shadow */
+        border: 3px solid #a0522d; /* Slightly thicker, Sienna border */
+        border-radius: 15px; /* More rounded corners */
+        background-color: #98fb98; /* Pale Green grass area */
+        box-shadow: 6px 6px 12px rgba(0,0,0,0.25); /* Enhanced shadow */
+        display: block; /* Helps prevent extra space below canvas */
+        margin: auto; /* Center canvas if body flex alignment isn't perfect */
     }
     #instructions {
         margin-top: 15px;
-        color: #555;
-        font-size: 1.1em;
+        color: #4a4a4a; /* Darker grey text */
+        font-size: 1.15em;
         text-align: center;
+        max-width: 800px; /* Limit width */
     }
-    /* Add a little heart emoji for cuteness */
-    #instructions::before {
-        content: '💖 ';
-    }
+    /* Cuter instruction bullets */
+    #instructions span { display: block; margin-top: 5px; }
+    #instructions span::before { content: '✨ '; }
+
 </style>
 </head>
 <body>
 
-<canvas id="gameCanvas" width="800" height="450"></canvas> <div id="instructions">
-    Use Left/Right Arrows to move. Press Spacebar to Jump. Go to a house door!
+<canvas id="gameCanvas" width="800" height="500"></canvas> <div id="instructions">
+    <span>Move Bunny with Left/Right Arrows! Press Space to Jump!</span>
+    <span>Enter a house door. Touch the person to get fed!</span>
+    <span>Go to the door inside the house to leave. Your little buddy follows!</span>
 </div>
 
 <script>
@@ -46,470 +52,648 @@
 
     // Game States: 'outside', 'inside'
     let gameState = 'outside';
-    let currentHouseIndex = -1; // Which house are we in?
-    let insideTimer = 0; // How long to stay inside
-    const INSIDE_DURATION = 180; // Frames (approx 3 seconds at 60fps)
+    let currentHouseIndex = -1;
+    let hasBeenFedThisVisit = false; // Track feeding per visit
 
     // Game Constants
-    const GRAVITY = 0.5;
-    const JUMP_FORCE = -11; // Slightly stronger jump
-    const MOVE_SPEED = 3.5; // Slightly faster move
-    const GROUND_Y = canvas.height - 60; // Adjusted ground level
+    const GRAVITY = 0.55;
+    const JUMP_FORCE = -12;
+    const MOVE_SPEED = 3.8;
+    const GROUND_Y = canvas.height - 70; // Adjusted ground level
+    const SIDEKICK_FOLLOW_SPEED = 0.08; // How quickly the sidekick catches up
+    const SIDEKICK_OFFSET_X = -50; // Target position behind main bunny
+    const SIDEKICK_OFFSET_Y = 5;  // Target position slightly lower
 
-    // Bunny State (with cuter additions)
-    let bunny = {
-        x: 50,
-        y: GROUND_Y - 45, // Start slightly above ground
-        width: 35,
-        height: 45,
-        vx: 0, // Velocity X
-        vy: 0, // Velocity Y
-        isJumping: false,
-        color: '#EAD9C9', // Lighter, softer tan
-        earColor: '#F5C8C1', // Pinkish inner ear
-        noseColor: '#FFB6C1', // Light pink nose
-        eyeColor: '#444444', // Dark grey eyes
-        tailSize: 8
-    };
+    // --- Main Bunny State ---
+    let bunny = createBunnyState(50, '#EAD9C9', 38, 48); // Main bunny
 
-    // Houses State (added interior colors)
+    // --- Sidekick Bunny State ---
+    let sidekick = createBunnyState(0, '#F5F5DC', 25, 32); // Sidekick bunny (Beige), smaller
+    sidekick.targetX = bunny.x + SIDEKICK_OFFSET_X;
+    sidekick.targetY = bunny.y + SIDEKICK_OFFSET_Y;
+    sidekick.noseColor = '#FFB6C1'; // Give sidekick a pink nose too
+    sidekick.earColor = '#FFE4E1'; // Misty Rose inner ear
+
+    // --- House State ---
     let houses = [
-        { x: 200, y: GROUND_Y - 110, width: 110, height: 110, doorX: 240, doorWidth: 35, color: '#FFDAB9', roofColor: '#CD853F', doorColor: '#A0522D', interiorColor: '#FFF8DC', itemColor: '#87CEEB' }, // Peach house, Cornsilk interior, SkyBlue item
-        { x: 550, y: GROUND_Y - 130, width: 130, height: 130, doorX: 590, doorWidth: 45, color: '#ADD8E6', roofColor: '#8B4513', doorColor: '#6B4423', interiorColor: '#E6E6FA', itemColor: '#98FB98' }  // Light Blue house, Lavender interior, PaleGreen item
+        { x: 220, y: GROUND_Y - 120, width: 120, height: 120, doorX: 260, doorWidth: 40, color: '#FFDAB9', roofColor: '#CD853F', doorColor: '#A0522D', interiorColor: '#FFFACD', itemColor: '#87CEFA', wallPattern: 'dots', interiorDoorX: 30 }, // Lemon Chiffon Int, LightSkyBlue Item
+        { x: 600, y: GROUND_Y - 140, width: 140, height: 140, doorX: 645, doorWidth: 50, color: '#ADD8E6', roofColor: '#8B4513', doorColor: '#6B4423', interiorColor: '#F0FFF0', itemColor: '#FFB6C1', wallPattern: 'stripes', interiorDoorX: canvas.width - 30 - 40 } // Honeydew Int, LightPink Item
     ];
+     // Add common interior door properties
+    houses.forEach(h => {
+        h.interiorDoorY = GROUND_Y - 80;
+        h.interiorDoorWidth = 40;
+        h.interiorDoorHeight = 80;
+    });
 
-    // Human Figure (simple)
+
+    // --- Human Figure State ---
     let human = {
-        x: 0, // Will be set based on house
-        y: GROUND_Y - 80,
-        width: 40,
-        height: 80,
-        headRadius: 20,
-        color: '#FFC0CB', // Pink clothes
-        skinColor: '#FFE4C4' // Bisque skin
+        x: 0, y: GROUND_Y - 90, width: 45, height: 90, headRadius: 22,
+        color: '#98FB98', // Pale Green clothes
+        skinColor: '#FFEBCD', // Blanched Almond skin
+        isFeeding: false,
+        feedTimer: 0,
+        feedDuration: 90 // Frames for feeding visual
     };
 
-    // Feeding animation state
-    let feedingHeart = {
-        show: false,
-        x: 0,
-        y: 0,
-        size: 15,
-        color: 'red'
-    };
+    // --- Particles ---
+    let particles = [];
 
-    // Input State
-    let keys = {
-        left: false,
-        right: false
-    };
+    // --- Input State ---
+    let keys = { left: false, right: false };
+
+    // --- Helper Functions ---
+    function createBunnyState(startX, color, width, height) {
+        return {
+            x: startX, y: GROUND_Y - height, width: width, height: height,
+            vx: 0, vy: 0, isJumping: false, onGround: true,
+            color: color, earColor: '#F5C8C1', noseColor: '#FF69B4', eyeColor: '#333', tailSize: Math.max(5, width / 4),
+            blinkTimer: Math.random() * 100 + 50, // Random initial blink time
+            earBobOffset: Math.random() * Math.PI * 2 // Random initial ear phase
+        };
+    }
+
+    function spawnParticles(x, y, count, color, type) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 2, // Spread out
+                vy: -Math.random() * 2 - 1,    // Move up initially
+                life: Math.random() * 40 + 20, // Lifetime
+                color: color,
+                size: Math.random() * 4 + 2,
+                type: type // 'heart' or 'sparkle'
+            });
+        }
+    }
 
     // --- Drawing Functions ---
 
     function drawSkyAndSun() {
-        // Gradient sky
-        let skyGradient = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-        skyGradient.addColorStop(0, '#87CEEB'); // Sky Blue
-        skyGradient.addColorStop(1, '#ADD8E6'); // Lighter Blue near horizon
-        ctx.fillStyle = skyGradient;
-        ctx.fillRect(0, 0, canvas.width, GROUND_Y);
+        // Gradient sky already set in CSS, could add clouds here
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; // Semi-transparent white clouds
+        ctx.beginPath(); ctx.ellipse(150, 100, 60, 30, 0, 0, Math.PI*2); ctx.fill(); // Cloud 1
+        ctx.beginPath(); ctx.ellipse(200, 110, 70, 40, 0, 0, Math.PI*2); ctx.fill(); // Cloud 1 part 2
+        ctx.beginPath(); ctx.ellipse(550, 80, 80, 40, 0, 0, Math.PI*2); ctx.fill(); // Cloud 2
+        ctx.beginPath(); ctx.ellipse(610, 90, 70, 35, 0, 0, Math.PI*2); ctx.fill(); // Cloud 2 part 2
 
-        // Simple Sun
-        ctx.fillStyle = '#FFD700'; // Gold
-        ctx.beginPath();
-        ctx.arc(canvas.width - 80, 80, 30, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    function drawGround() {
-        ctx.fillStyle = '#90EE90'; // Light Green
-        ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
-        // Add some grass blades for texture
-        ctx.fillStyle = '#6B8E23'; // Olive Drab
-        for (let i = 0; i < canvas.width; i += 15) {
-            ctx.fillRect(i + Math.random() * 10, GROUND_Y - 5 + Math.random() * 5, 2, 10);
+        // Sun
+        ctx.fillStyle = '#FFDA63'; // Softer yellow sun
+        ctx.beginPath(); ctx.arc(canvas.width - 100, 100, 40, 0, Math.PI * 2); ctx.fill();
+        // Sun rays (subtle)
+        ctx.strokeStyle = 'rgba(255, 218, 99, 0.5)';
+        ctx.lineWidth = 3;
+        for(let i = 0; i < 8; i++){
+            const angle = (i / 8) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width - 100 + Math.cos(angle) * 45, 100 + Math.sin(angle) * 45);
+            ctx.lineTo(canvas.width - 100 + Math.cos(angle) * 60, 100 + Math.sin(angle) * 60);
+            ctx.stroke();
         }
     }
 
-    function drawBunny() {
-        // Tail (draw first so body overlaps)
-        ctx.fillStyle = '#FFFFFF'; // White tail
-        ctx.beginPath();
-        ctx.arc(bunny.x, bunny.y + bunny.height * 0.7, bunny.tailSize, 0, Math.PI * 2);
-        ctx.fill();
+    function drawGroundAndFlowers() {
+        // Base ground
+        ctx.fillStyle = '#90EE90'; // Light Green
+        ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+        // Subtle texture
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        for(let i=0; i< 100; i++){ ctx.fillRect(Math.random() * canvas.width, GROUND_Y + Math.random()*(canvas.height-GROUND_Y), 2, 2);}
 
-        // Body (rounded rectangle)
-        ctx.fillStyle = bunny.color;
-        ctx.beginPath();
-        ctx.roundRect(bunny.x, bunny.y, bunny.width, bunny.height, [10]); // Use roundRect if available
-        ctx.fill();
+        // Grass blades
+        ctx.fillStyle = '#6B8E23'; // Olive Drab
+        for (let i = 0; i < canvas.width; i += 10) {
+            ctx.fillRect(i + Math.random() * 8, GROUND_Y - 6 + Math.random() * 6, 2, Math.random() * 8 + 4);
+        }
 
-        // Ears (also rounded)
-        const earWidth = 8;
-        const earHeight = 20;
+        // Cute Flowers
+        const flowerColors = ['#FF69B4', '#FFD700', '#87CEFA', '#FFFFFF']; // HotPink, Gold, LightSkyBlue, White
+        for(let i=0; i<15; i++){
+            const x = Math.random() * canvas.width;
+            const groundOffset = -15 - Math.random()*10;
+            // Stem
+            ctx.fillStyle = '#228B22'; // ForestGreen
+            ctx.fillRect(x, GROUND_Y + groundOffset, 2, 15);
+            // Petals
+            const petalColor = flowerColors[Math.floor(Math.random()*flowerColors.length)];
+            ctx.fillStyle = petalColor;
+            for(let p=0; p<5; p++){
+                const angle = (p/5) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.ellipse(x + Math.cos(angle)*6, GROUND_Y + groundOffset - 5 + Math.sin(angle)*6, 4, 4, 0, 0, Math.PI*2);
+                ctx.fill();
+            }
+            // Center
+             ctx.fillStyle = '#FFFFE0'; // Light Yellow center
+             ctx.beginPath(); ctx.arc(x, GROUND_Y + groundOffset - 5, 3, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    function drawSingleBunny(b, globalTime) {
+        const bob = b.onGround ? Math.sin(globalTime * 5 + b.earBobOffset) * 1.5 : 0; // Gentle bobbing when on ground
+        const earBob = Math.sin(globalTime * 8 + b.earBobOffset) * 3; // Faster ear bob
+
+        // Tail (draw first)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(b.x + (b.vx > 0 ? 0 : b.width), b.y + b.height * 0.7 + bob, b.tailSize, 0, Math.PI * 2); ctx.fill();
+
+        // Body
+        ctx.fillStyle = b.color;
+        ctx.beginPath(); ctx.roundRect(b.x, b.y + bob, b.width, b.height, [b.width / 3]); ctx.fill();
+
+        // Ears
+        const earWidth = b.width * 0.25;
+        const earHeight = b.height * 0.6;
+        const earX1 = b.x + b.width * 0.2;
+        const earX2 = b.x + b.width * 0.8 - earWidth;
+        const earY = b.y - earHeight + b.height * 0.2 + bob;
         // Outer ear
-        ctx.fillStyle = bunny.color;
-        ctx.beginPath();
-        ctx.roundRect(bunny.x + 7, bunny.y - earHeight + 5, earWidth, earHeight, [5]);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.roundRect(bunny.x + bunny.width - 7 - earWidth, bunny.y - earHeight + 5, earWidth, earHeight, [5]);
-        ctx.fill();
+        ctx.fillStyle = b.color;
+        ctx.beginPath(); ctx.roundRect(earX1, earY + earBob, earWidth, earHeight, [earWidth/2]); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(earX2, earY - earBob, earWidth, earHeight, [earWidth/2]); ctx.fill();
         // Inner ear
-        ctx.fillStyle = bunny.earColor;
-        ctx.beginPath();
-        ctx.roundRect(bunny.x + 7 + 1, bunny.y - earHeight + 7, earWidth - 2, earHeight - 4, [4]);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.roundRect(bunny.x + bunny.width - 7 - earWidth + 1, bunny.y - earHeight + 7, earWidth - 2, earHeight - 4, [4]);
-        ctx.fill();
+        ctx.fillStyle = b.earColor;
+        const innerEarW = earWidth * 0.6; const innerEarH = earHeight * 0.7;
+        const innerEarOffX = (earWidth - innerEarW) / 2; const innerEarOffY = (earHeight - innerEarH) / 3;
+        ctx.beginPath(); ctx.roundRect(earX1 + innerEarOffX, earY + earBob + innerEarOffY, innerEarW, innerEarH, [innerEarW/2]); ctx.fill();
+        ctx.beginPath(); ctx.roundRect(earX2 + innerEarOffX, earY - earBob + innerEarOffY, innerEarW, innerEarH, [innerEarW/2]); ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = b.eyeColor;
+        const eyeY = b.y + b.height * 0.4 + bob;
+        const eyeSize = b.width / 10;
+        b.blinkTimer--;
+        let currentEyeSize = eyeSize;
+        if (b.blinkTimer <= 10 && b.blinkTimer > 0) { // Blink phase
+            currentEyeSize = eyeSize * (Math.abs(b.blinkTimer - 5) / 5) ; // Close and open
+             ctx.lineWidth=1; ctx.strokeStyle=b.eyeColor;
+             ctx.beginPath(); ctx.moveTo(b.x + b.width*0.3 - eyeSize, eyeY); ctx.lineTo(b.x + b.width*0.3 + eyeSize, eyeY); ctx.stroke(); // Draw line when "closed"
+             ctx.beginPath(); ctx.moveTo(b.x + b.width*0.7 - eyeSize, eyeY); ctx.lineTo(b.x + b.width*0.7 + eyeSize, eyeY); ctx.stroke();
+        } else {
+            if(b.blinkTimer <= 0) b.blinkTimer = Math.random() * 150 + 80; // Reset blink timer
+            // Draw open eyes
+            ctx.beginPath(); ctx.arc(b.x + b.width * 0.3, eyeY, currentEyeSize, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(b.x + b.width * 0.7, eyeY, currentEyeSize, 0, Math.PI * 2); ctx.fill();
+            // Eye glint
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath(); ctx.arc(b.x + b.width * 0.3 + eyeSize*0.3, eyeY - eyeSize*0.3, eyeSize*0.4, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(b.x + b.width * 0.7 + eyeSize*0.3, eyeY - eyeSize*0.3, eyeSize*0.4, 0, Math.PI * 2); ctx.fill();
+        }
 
 
-        // Eyes (larger dots)
-        ctx.fillStyle = bunny.eyeColor;
+        // Nose
+        ctx.fillStyle = b.noseColor;
         ctx.beginPath();
-        ctx.arc(bunny.x + 12, bunny.y + 15, 3, 0, Math.PI * 2); // Left eye
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(bunny.x + bunny.width - 12, bunny.y + 15, 3, 0, Math.PI * 2); // Right eye
-        ctx.fill();
-
-        // Nose (small triangle/dot)
-        ctx.fillStyle = bunny.noseColor;
-        ctx.beginPath();
-        ctx.arc(bunny.x + bunny.width / 2, bunny.y + 22, 3, 0, Math.PI * 2);
-        // ctx.moveTo(bunny.x + bunny.width / 2 - 3, bunny.y + 23); // Triangle alternative
-        // ctx.lineTo(bunny.x + bunny.width / 2 + 3, bunny.y + 23);
-        // ctx.lineTo(bunny.x + bunny.width / 2, bunny.y + 26);
-        ctx.fill();
+        const noseY = b.y + b.height * 0.6 + bob;
+        ctx.moveTo(b.x + b.width / 2 - 3, noseY);
+        ctx.lineTo(b.x + b.width / 2 + 3, noseY);
+        ctx.lineTo(b.x + b.width / 2, noseY + 3);
+        ctx.fill(); // Cute triangle nose
     }
 
     function drawHouses() {
-        houses.forEach(house => {
+         houses.forEach(house => {
+             // Enhanced shadows maybe?
+             ctx.fillStyle = 'rgba(0,0,0,0.1)';
+             ctx.beginPath(); ctx.roundRect(house.x+5, house.y+5, house.width, house.height, [5]); ctx.fill();
+
             // House body
             ctx.fillStyle = house.color;
-            ctx.fillRect(house.x, house.y, house.width, house.height);
-            // Roof (simple triangle)
+            ctx.beginPath(); ctx.roundRect(house.x, house.y, house.width, house.height, [5]); ctx.fill();
+            // Roof
             ctx.fillStyle = house.roofColor;
             ctx.beginPath();
-            ctx.moveTo(house.x - 10, house.y); // Overhang
-            ctx.lineTo(house.x + house.width / 2, house.y - house.height / 1.8); // Taller roof
-            ctx.lineTo(house.x + house.width + 10, house.y); // Overhang
-            ctx.closePath();
-            ctx.fill();
-            // Door (slightly rounded)
-            ctx.fillStyle = house.doorColor;
-            ctx.beginPath();
-            // Manually draw rounded top rectangle for door if roundRect not fully supported everywhere
-            const doorY = house.y + house.height * 0.35;
-            const doorH = house.height * 0.65;
-            const doorR = 5; // Radius
-            ctx.moveTo(house.doorX + doorR, doorY);
-            ctx.lineTo(house.doorX + house.doorWidth - doorR, doorY);
+            ctx.moveTo(house.x - 15, house.y + 5); // Overhang side
+            ctx.lineTo(house.x + house.width / 2, house.y - house.height / 1.5); // Peak
+            ctx.lineTo(house.x + house.width + 15, house.y + 5); // Overhang other side
+            ctx.closePath(); ctx.fill();
+             // Roof texture (lines)
+             ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 2;
+             for(let i=5; i<house.width+20; i+=10){
+                 ctx.beginPath(); ctx.moveTo(house.x + house.width/2, house.y - house.height / 1.5);
+                 ctx.lineTo(house.x -15 + i, house.y+5); ctx.stroke();
+             }
+
+            // Door
+            const doorY = house.y + house.height * 0.30; const doorH = house.height * 0.70; const doorR = 8;
+            ctx.fillStyle = house.doorColor; ctx.beginPath();
+            ctx.moveTo(house.doorX + doorR, doorY); ctx.lineTo(house.doorX + house.doorWidth - doorR, doorY);
             ctx.arcTo(house.doorX + house.doorWidth, doorY, house.doorX + house.doorWidth, doorY + doorR, doorR);
-            ctx.lineTo(house.doorX + house.doorWidth, doorY + doorH);
-            ctx.lineTo(house.doorX, doorY + doorH);
+            ctx.lineTo(house.doorX + house.doorWidth, doorY + doorH - doorR); // Stop before bottom roundness
+            ctx.arcTo(house.doorX + house.doorWidth, doorY + doorH, house.doorX + house.doorWidth - doorR, doorY + doorH, doorR); // Bottom right corner
+            ctx.lineTo(house.doorX + doorR, doorY + doorH); // Bottom edge
+            ctx.arcTo(house.doorX, doorY + doorH, house.doorX, doorY + doorH - doorR, doorR); // Bottom left corner
             ctx.lineTo(house.doorX, doorY + doorR);
             ctx.arcTo(house.doorX, doorY, house.doorX + doorR, doorY, doorR);
-            ctx.closePath();
-            ctx.fill();
+            ctx.closePath(); ctx.fill();
             // Doorknob
-            ctx.fillStyle = '#FFD700'; // Gold knob
-            ctx.beginPath();
-            ctx.arc(house.doorX + house.doorWidth - 10, doorY + doorH / 2, 3, 0, Math.PI * 2);
-            ctx.fill();
-        });
+            ctx.fillStyle = '#FFDA63'; ctx.beginPath();
+            ctx.arc(house.doorX + house.doorWidth - 12, doorY + doorH / 2, 4, 0, Math.PI * 2); ctx.fill();
+            // Door decoration (window?)
+            ctx.fillStyle = 'rgba(240, 248, 255, 0.7)'; // Alice blue, semi-transparent
+            ctx.beginPath(); ctx.ellipse(house.doorX + house.doorWidth/2, doorY + doorH*0.3, house.doorWidth*0.2, house.doorWidth*0.25, 0, 0, Math.PI*2); ctx.fill();
+         });
     }
 
-    function drawInterior(house) {
+     function drawInterior(house) {
         // Background wall
         ctx.fillStyle = house.interiorColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Floor
-        ctx.fillStyle = '#D2B48C'; // Tan floor
-        ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
-
-        // Draw some simple items based on house index or randomly
-        ctx.fillStyle = house.itemColor;
-        if (currentHouseIndex === 0) {
-            // Simple table
-            ctx.fillRect(canvas.width * 0.6, GROUND_Y - 60, 100, 15); // Tabletop
-            ctx.fillRect(canvas.width * 0.6 + 10, GROUND_Y - 45, 10, 45); // Leg 1
-            ctx.fillRect(canvas.width * 0.6 + 80, GROUND_Y - 45, 10, 45); // Leg 2
-            // Simple window
-            ctx.fillStyle = '#ADD8E6'; // Light blue window pane
-            ctx.fillRect(canvas.width * 0.1, canvas.height * 0.2, 80, 60);
-             ctx.strokeStyle = '#8B4513'; // Brown frame
-             ctx.lineWidth = 5;
-             ctx.strokeRect(canvas.width * 0.1, canvas.height * 0.2, 80, 60);
-        } else {
-            // Simple chair
-            ctx.fillRect(canvas.width * 0.2, GROUND_Y - 70, 50, 15); // Seat
-            ctx.fillRect(canvas.width * 0.2 + 5, GROUND_Y - 55, 10, 55); // Leg 1
-            ctx.fillRect(canvas.width * 0.2 + 35, GROUND_Y - 55, 10, 55); // Leg 2
-            ctx.fillRect(canvas.width * 0.2, GROUND_Y - 110, 10, 40); // Back rest 1
-            ctx.fillRect(canvas.width * 0.2 + 40, GROUND_Y - 110, 10, 40); // Back rest 2
-            ctx.fillRect(canvas.width * 0.2, GROUND_Y - 115, 50, 10); // Back rest top
-            // Simple Picture Frame
-            ctx.fillStyle = '#DEB887'; // BurlyWood frame
-            ctx.fillRect(canvas.width * 0.7, canvas.height * 0.25, 60, 80);
-            ctx.fillStyle = '#FFFFFF'; // White picture area
-            ctx.fillRect(canvas.width * 0.7 + 5, canvas.height * 0.25 + 5, 50, 70);
+        // Wall pattern
+        if (house.wallPattern === 'dots') {
+            ctx.fillStyle = 'rgba(0,0,0,0.08)';
+            for(let r=0; r<canvas.height/40; r++){ for(let c=0; c<canvas.width/40; c++){
+                ctx.beginPath(); ctx.arc(c*40 + (r%2)*20 + 10, r*40 + 20, 3, 0, Math.PI*2); ctx.fill();
+            }}
+        } else if (house.wallPattern === 'stripes') {
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            for(let c=0; c<canvas.width/60; c++){ ctx.fillRect(c*60, 0, 30, canvas.height); }
         }
+
+        // Floor (like wood planks)
+        const plankColor1 = '#D2B48C'; // Tan
+        const plankColor2 = '#CDAA7D'; // Lighter Tan
+        for(let i=0; i<canvas.width; i+=50){
+             ctx.fillStyle = (i/50)%2 === 0 ? plankColor1 : plankColor2;
+             ctx.fillRect(i, GROUND_Y, 50, canvas.height - GROUND_Y);
+             ctx.fillStyle = 'rgba(0,0,0,0.1)'; // Shadow line
+             ctx.fillRect(i, GROUND_Y, 1, canvas.height - GROUND_Y);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.1)'; // Baseboard shadow
+        ctx.fillRect(0, GROUND_Y, canvas.width, 4);
+
+
+        // Draw items (more detail)
+        ctx.fillStyle = house.itemColor;
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
+        if (currentHouseIndex === 0) {
+            // Cute Table with vase
+            const tableX = canvas.width * 0.65, tableY = GROUND_Y - 70, tableW = 120, tableH = 18;
+            ctx.fillStyle='#DEB887'; // BurlyWood
+            ctx.fillRect(tableX, tableY, tableW, tableH); ctx.strokeRect(tableX, tableY, tableW, tableH); // Tabletop
+            ctx.fillRect(tableX + 10, tableY + tableH, 15, 70 - tableH); ctx.strokeRect(tableX + 10, tableY + tableH, 15, 70 - tableH); // Leg 1
+            ctx.fillRect(tableX + tableW - 25, tableY + tableH, 15, 70 - tableH); ctx.strokeRect(tableX + tableW - 25, tableY + tableH, 15, 70 - tableH); // Leg 2
+            // Vase
+            const vaseX = tableX + tableW/2, vaseY = tableY - 30;
+            ctx.fillStyle = house.itemColor;
+            ctx.beginPath(); ctx.moveTo(vaseX-10, tableY); ctx.lineTo(vaseX-5, vaseY); ctx.lineTo(vaseX+5, vaseY); ctx.lineTo(vaseX+10, tableY); ctx.closePath(); ctx.fill(); ctx.stroke();
+             // Flower in vase
+             ctx.fillStyle = '#228B22'; ctx.fillRect(vaseX-1, vaseY-15, 2, 15); // Stem
+             ctx.fillStyle = '#FF69B4'; ctx.beginPath(); ctx.arc(vaseX, vaseY-18, 6, 0, Math.PI*2); ctx.fill(); // Flower head
+
+        } else {
+            // Comfy Armchair
+            const chairX = canvas.width * 0.15, chairY = GROUND_Y - 80, chairW = 80, chairH = 50;
+            ctx.fillStyle = house.itemColor;
+            ctx.beginPath(); ctx.roundRect(chairX, chairY, chairW, chairH, [15]); ctx.fill(); ctx.stroke(); // Seat cushion
+            ctx.beginPath(); ctx.roundRect(chairX - 15, chairY-10, 25, chairH+10, [10]); ctx.fill(); ctx.stroke(); // Left armrest
+            ctx.beginPath(); ctx.roundRect(chairX + chairW - 10, chairY-10, 25, chairH+10, [10]); ctx.fill(); ctx.stroke(); // Right armrest
+            ctx.beginPath(); ctx.roundRect(chairX, chairY - 50, chairW, 60, [15]); ctx.fill(); ctx.stroke(); // Backrest
+             // Tiny legs
+             ctx.fillStyle = '#A0522D';
+             ctx.fillRect(chairX+5, chairY+chairH, 10, 10); ctx.fillRect(chairX+chairW-15, chairY+chairH, 10, 10);
+
+        }
+
+        // Draw Interior Door for exiting
+        ctx.fillStyle = houses[currentHouseIndex].doorColor; // Match exterior door color
+        ctx.beginPath(); ctx.roundRect(house.interiorDoorX, house.interiorDoorY, house.interiorDoorWidth, house.interiorDoorHeight, [8]); ctx.fill();
+        // Door frame
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 4;
+        ctx.strokeRect(house.interiorDoorX-2, house.interiorDoorY-2, house.interiorDoorWidth+4, house.interiorDoorHeight+4);
+        // Doorknob
+        ctx.fillStyle = '#FFDA63'; ctx.beginPath();
+        ctx.arc(house.interiorDoorX + house.interiorDoorWidth - 12, house.interiorDoorY + house.interiorDoorHeight / 2, 4, 0, Math.PI * 2); ctx.fill();
+        // Add "EXIT" text or arrow?
+         ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = '12px Arial Black'; ctx.textAlign = 'center';
+         ctx.fillText("EXIT", house.interiorDoorX + house.interiorDoorWidth/2, house.interiorDoorY + 15);
+         //Arrow
+         ctx.beginPath(); ctx.moveTo(house.interiorDoorX + house.interiorDoorWidth/2 - 10, house.interiorDoorY + 25); ctx.lineTo(house.interiorDoorX + house.interiorDoorWidth/2 + 10, house.interiorDoorY + 25);
+         ctx.lineTo(house.interiorDoorX + house.interiorDoorWidth/2, house.interiorDoorY + 35); ctx.closePath(); ctx.fill();
+
     }
 
-    function drawHuman(house) {
-        // Position human relative to the center/side
-        human.x = canvas.width * 0.4;
+    function drawHuman() {
+        // Position human more centrally
+        human.x = canvas.width * 0.45;
         human.y = GROUND_Y - human.height;
 
-        // Body
+        const bob = Math.sin(performance.now() / 300) * 2; // Gentle idle bob
+
+        // Body (slightly rounded)
         ctx.fillStyle = human.color;
-        ctx.fillRect(human.x, human.y + human.headRadius * 1.5, human.width, human.height);
+        ctx.beginPath(); ctx.roundRect(human.x, human.y + human.headRadius * 1.5 + bob, human.width, human.height, [10]); ctx.fill();
 
         // Head
         ctx.fillStyle = human.skinColor;
-        ctx.beginPath();
-        ctx.arc(human.x + human.width / 2, human.y + human.headRadius, human.headRadius, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(human.x + human.width / 2, human.y + human.headRadius + bob, human.headRadius, 0, Math.PI * 2); ctx.fill();
 
         // Simple face (eyes and smile)
         ctx.fillStyle = '#333';
+        const eyeY = human.y + human.headRadius - 4 + bob;
+        ctx.beginPath(); ctx.arc(human.x + human.width / 2 - 8, eyeY, 3.5, 0, Math.PI * 2); ctx.fill(); // Left eye
+        ctx.beginPath(); ctx.arc(human.x + human.width / 2 + 8, eyeY, 3.5, 0, Math.PI * 2); ctx.fill(); // Right eye
+        // Smile (wider)
         ctx.beginPath();
-        ctx.arc(human.x + human.width / 2 - 7, human.y + human.headRadius - 2, 3, 0, Math.PI * 2); // Left eye
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(human.x + human.width / 2 + 7, human.y + human.headRadius - 2, 3, 0, Math.PI * 2); // Right eye
-        ctx.fill();
-        // Smile
-        ctx.beginPath();
-        ctx.arc(human.x + human.width / 2, human.y + human.headRadius + 5, 8, 0, Math.PI, false);
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        const smileY = human.y + human.headRadius + 8 + bob;
+        ctx.arc(human.x + human.width / 2, smileY, 10, 0.1 * Math.PI, 0.9 * Math.PI, false);
+        ctx.strokeStyle = '#333'; ctx.lineWidth = 2.5; ctx.stroke();
 
-        // Simple arm (can be animated later)
-         ctx.fillStyle = human.skinColor;
-         ctx.fillRect(human.x - 10, human.y + human.headRadius * 1.8, 10, 40); // Arm body side
+        // Arms
+        ctx.fillStyle = human.skinColor;
+         // Arm position changes when feeding
+        const armY = human.y + human.headRadius * 1.8 + bob;
+        let arm1X = human.x - 12; let arm1W = 12; let arm1H = 50;
+        let arm2X = human.x + human.width; let arm2W = 12; let arm2H = 50;
+        if(human.isFeeding){ arm2X -= 10; arm2W += 10; arm2H=40; } // Extend arm slightly
+
+        ctx.beginPath(); ctx.roundRect(arm1X, armY, arm1W, arm1H, [5]); ctx.fill(); // Left arm
+        ctx.beginPath(); ctx.roundRect(arm2X, armY + (human.isFeeding? 10:0), arm2W, arm2H, [5]); ctx.fill(); // Right arm (feeding arm)
+
+        // Hand (simple circle) when feeding
+         if(human.isFeeding){
+             ctx.fillStyle = human.skinColor; ctx.beginPath();
+             ctx.arc(arm2X + arm2W - 2, armY + 10 + arm2H - 2, 7, 0, Math.PI*2); ctx.fill();
+         }
     }
 
-     function drawBunnyInside() {
-        // Draw bunny sitting near the human
-        let insideBunnyX = human.x + human.width + 20;
-        let insideBunnyY = GROUND_Y - bunny.height;
+     function drawBunnyAndSidekickInside(globalTime) {
+        // Draw main bunny near human if not near door
+        let bunnyTargetX = human.x + human.width + 30;
+         // Allow L/R movement inside
+         bunny.vx = 0;
+         if (keys.left) bunny.vx = -MOVE_SPEED * 0.6; // Slower inside
+         if (keys.right) bunny.vx = MOVE_SPEED * 0.6;
+         bunny.x += bunny.vx;
+         // Clamp bunny position inside
+         bunny.x = Math.max(10, Math.min(canvas.width - bunny.width - 10, bunny.x));
+         bunny.y = GROUND_Y - bunny.height; // Always on ground inside
+         bunny.onGround = true; bunny.isJumping = false;
 
-         // Tail (draw first)
-        ctx.fillStyle = '#FFFFFF'; // White tail
-        ctx.beginPath();
-        ctx.arc(insideBunnyX, insideBunnyY + bunny.height * 0.7, bunny.tailSize, 0, Math.PI * 2);
-        ctx.fill();
+        drawSingleBunny(bunny, globalTime);
 
-        // Body (rounded rectangle)
-        ctx.fillStyle = bunny.color;
-        ctx.beginPath();
-        ctx.roundRect(insideBunnyX, insideBunnyY, bunny.width, bunny.height, [10]);
-        ctx.fill();
-
-         // Ears (slightly different position maybe?)
-        const earWidth = 8;
-        const earHeight = 20;
-        ctx.fillStyle = bunny.color;
-        ctx.beginPath(); ctx.roundRect(insideBunnyX + 7, insideBunnyY - earHeight + 5, earWidth, earHeight, [5]); ctx.fill();
-        ctx.beginPath(); ctx.roundRect(insideBunnyX + bunny.width - 7 - earWidth, insideBunnyY - earHeight + 5, earWidth, earHeight, [5]); ctx.fill();
-        ctx.fillStyle = bunny.earColor;
-        ctx.beginPath(); ctx.roundRect(insideBunnyX + 7 + 1, insideBunnyY - earHeight + 7, earWidth - 2, earHeight - 4, [4]); ctx.fill();
-        ctx.beginPath(); ctx.roundRect(insideBunnyX + bunny.width - 7 - earWidth + 1, insideBunnyY - earHeight + 7, earWidth - 2, earHeight - 4, [4]); ctx.fill();
-
-        // Eyes
-        ctx.fillStyle = bunny.eyeColor;
-        ctx.beginPath(); ctx.arc(insideBunnyX + 12, insideBunnyY + 15, 3, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(insideBunnyX + bunny.width - 12, insideBunnyY + 15, 3, 0, Math.PI * 2); ctx.fill();
-
-        // Nose
-        ctx.fillStyle = bunny.noseColor;
-        ctx.beginPath(); ctx.arc(insideBunnyX + bunny.width / 2, insideBunnyY + 22, 3, 0, Math.PI * 2); ctx.fill();
+        // Sidekick follows main bunny inside too
+        sidekick.targetX = bunny.x + SIDEKICK_OFFSET_X;
+        sidekick.targetY = bunny.y + SIDEKICK_OFFSET_Y;
+        sidekick.x += (sidekick.targetX - sidekick.x) * SIDEKICK_FOLLOW_SPEED * 2; // Faster catchup inside
+        sidekick.y = GROUND_Y - sidekick.height; // Always on ground
+        sidekick.onGround = true; sidekick.isJumping = false;
+         // Clamp sidekick position
+         sidekick.x = Math.max(5, Math.min(canvas.width - sidekick.width - 5, sidekick.x));
+        drawSingleBunny(sidekick, globalTime);
     }
 
-    function drawFeedingAnimation() {
-        let insideBunnyX = human.x + human.width + 20;
-        let insideBunnyY = GROUND_Y - bunny.height;
 
-        // Draw heart near bunny's face
-        if (feedingHeart.show) {
-            feedingHeart.x = insideBunnyX + bunny.width / 2;
-            feedingHeart.y = insideBunnyY + 15; // Near mouth level
-            ctx.fillStyle = feedingHeart.color;
-            ctx.font = `${feedingHeart.size * 1.5}px Arial`; // Use emoji heart if font supports
-            ctx.textAlign = 'center';
-            // Simple heart shape drawing as fallback:
-             ctx.beginPath();
-             ctx.moveTo(feedingHeart.x, feedingHeart.y - feedingHeart.size / 4);
-             ctx.bezierCurveTo(feedingHeart.x, feedingHeart.y - feedingHeart.size / 2, feedingHeart.x - feedingHeart.size / 2, feedingHeart.y - feedingHeart.size / 2, feedingHeart.x - feedingHeart.size / 2, feedingHeart.y);
-             ctx.bezierCurveTo(feedingHeart.x - feedingHeart.size / 2, feedingHeart.y + feedingHeart.size / 4, feedingHeart.x, feedingHeart.y + feedingHeart.size / 1.5, feedingHeart.x, feedingHeart.y + feedingHeart.size / 1.5); // Pointy bottom
-             ctx.bezierCurveTo(feedingHeart.x, feedingHeart.y + feedingHeart.size / 1.5, feedingHeart.x + feedingHeart.size / 2, feedingHeart.y + feedingHeart.size / 4, feedingHeart.x + feedingHeart.size / 2, feedingHeart.y);
-             ctx.bezierCurveTo(feedingHeart.x + feedingHeart.size / 2, feedingHeart.y - feedingHeart.size / 2, feedingHeart.x, feedingHeart.y - feedingHeart.size / 2, feedingHeart.x, feedingHeart.y - feedingHeart.size / 4);
-             ctx.fill();
-             ctx.closePath();
+    function updateAndDrawParticles() {
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.05; // Slight gravity on particles
+            p.life--;
 
-            // Add "Nom nom!" text
-            ctx.fillStyle = '#444';
-            ctx.font = '18px "Comic Sans MS", cursive';
-            ctx.fillText("Nom nom!", feedingHeart.x, feedingHeart.y - feedingHeart.size);
+            if (p.life <= 0) {
+                particles.splice(i, 1);
+                continue;
+            }
+
+            ctx.globalAlpha = Math.max(0, p.life / 30); // Fade out
+            ctx.fillStyle = p.color;
+
+            if (p.type === 'heart') {
+                 // Draw simple heart particle
+                 ctx.beginPath();
+                 const s = p.size * (p.life / 30); // Shrink as fades
+                 ctx.moveTo(p.x, p.y - s / 4);
+                 ctx.bezierCurveTo(p.x, p.y - s / 2, p.x - s / 2, p.y - s / 2, p.x - s / 2, p.y);
+                 ctx.bezierCurveTo(p.x - s / 2, p.y + s / 4, p.x, p.y + s / 1.5, p.x, p.y + s / 1.5);
+                 ctx.bezierCurveTo(p.x, p.y + s / 1.5, p.x + s / 2, p.y + s / 4, p.x + s / 2, p.y);
+                 ctx.bezierCurveTo(p.x + s / 2, p.y - s / 2, p.x, p.y - s / 2, p.x, p.y - s / 4);
+                 ctx.fill(); ctx.closePath();
+            } else { // Sparkle
+                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+            }
+            ctx.globalAlpha = 1.0; // Reset alpha
         }
     }
 
     // --- Game Logic ---
 
-    function updateOutside() {
-         // Handle horizontal movement
-        bunny.vx = 0;
-        if (keys.left) {
-            bunny.vx = -MOVE_SPEED;
-        }
-        if (keys.right) {
-            bunny.vx = MOVE_SPEED;
-        }
-        bunny.x += bunny.vx;
+    function updateBunny(b, isSidekick = false) {
+         // Apply horizontal movement (only for main bunny via keys)
+         if (!isSidekick) {
+             b.vx = 0;
+             if (keys.left) b.vx = -MOVE_SPEED;
+             if (keys.right) b.vx = MOVE_SPEED;
+         } else {
+             // Sidekick follows target X Lerp (Linear Interpolation)
+             let targetX = bunny.x + SIDEKICK_OFFSET_X;
+             b.x += (targetX - b.x) * SIDEKICK_FOLLOW_SPEED;
+         }
+         b.x += b.vx;
+
 
         // Apply gravity
-        bunny.vy += GRAVITY;
-        bunny.y += bunny.vy;
+        b.vy += GRAVITY;
+        b.y += b.vy;
+        b.onGround = false;
 
         // Ground collision
-        if (bunny.y + bunny.height > GROUND_Y) {
-            bunny.y = GROUND_Y - bunny.height;
-            bunny.vy = 0;
-            bunny.isJumping = false;
+        if (b.y + b.height > GROUND_Y) {
+            b.y = GROUND_Y - b.height;
+            b.vy = 0;
+            b.isJumping = false;
+            b.onGround = true;
+            // Small dust puff on landing?
+            // if(Math.abs(b.vy) > 2) spawnParticles(b.x + b.width/2, b.y + b.height, 3, 'rgba(139, 69, 19, 0.5)', 'sparkle');
         }
 
         // Prevent moving off-screen (simple boundary)
-        if (bunny.x < 0) {
-            bunny.x = 0;
-        }
-        if (bunny.x + bunny.width > canvas.width) {
-            bunny.x = canvas.width - bunny.width;
-        }
+        if (b.x < 0) b.x = 0;
+        if (b.x + b.width > canvas.width) b.x = canvas.width - b.width;
 
-        // Check for entering houses
+         // Sidekick Y position follows main bunny's Y smoothly
+         if (isSidekick) {
+              let targetY = Math.max(bunny.y + SIDEKICK_OFFSET_Y, GROUND_Y - b.height); // Follow bunny but stay above ground
+              b.y += (targetY - b.y) * SIDEKICK_FOLLOW_SPEED * 1.5; // Follow Y slightly faster
+              // Re-check ground collision for sidekick after Y lerp
+              if (b.y + b.height > GROUND_Y) {
+                 b.y = GROUND_Y - b.height;
+                 b.vy = 0; b.isJumping = false; b.onGround = true;
+             }
+         }
+    }
+
+    function updateOutside() {
+        updateBunny(bunny);
+        updateBunny(sidekick, true); // Update sidekick logic
+
+        // Check for entering houses (Main bunny only)
         houses.forEach((house, index) => {
-            // Check if bunny CENTER overlaps with the door area horizontally and is ON the ground
             const bunnyCenterX = bunny.x + bunny.width / 2;
-            if (bunnyCenterX > house.doorX &&
-                bunnyCenterX < house.doorX + house.doorWidth &&
-                bunny.y + bunny.height >= GROUND_Y && // On the ground
-                !bunny.isJumping)
+            if (bunnyCenterX > house.doorX && bunnyCenterX < house.doorX + house.doorWidth && bunny.onGround)
             {
                 // --- ENTER HOUSE ---
                 gameState = 'inside';
                 currentHouseIndex = index;
-                insideTimer = INSIDE_DURATION; // Start timer
-                feedingHeart.show = true; // Start feeding animation
-                // Disable movement keys while inside
-                keys.left = false;
-                keys.right = false;
+                hasBeenFedThisVisit = false; // Reset feeding flag
+                human.isFeeding = false; // Reset feeding animation state
+                // Position bunny inside near door initially
+                bunny.x = house.interiorDoorX + house.interiorDoorWidth + 20;
+                bunny.y = GROUND_Y - bunny.height;
+                bunny.vx = 0; bunny.vy = 0; bunny.onGround = true;
+                 // Position sidekick relative to bunny
+                 sidekick.x = bunny.x + SIDEKICK_OFFSET_X;
+                 sidekick.y = GROUND_Y - sidekick.height;
+                 sidekick.vx = 0; sidekick.vy = 0; sidekick.onGround = true;
+                 // Disable arrow keys temporarily to avoid instant exit if holding arrow
+                 keys.left = false; keys.right = false;
             }
         });
     }
 
     function updateInside() {
-        insideTimer--;
-        // Simple pulsing effect for heart
-        feedingHeart.size = 15 + Math.sin(insideTimer * 0.1) * 3;
+         // Allow main bunny L/R movement (handled in drawBunnyAndSidekickInside via bunny.vx)
 
-        if (insideTimer <= 0) {
-            // --- EXIT HOUSE ---
-            gameState = 'outside';
-            // Place bunny just outside the door it entered
-            let exitHouse = houses[currentHouseIndex];
-            bunny.x = exitHouse.doorX + exitHouse.doorWidth + 5; // Position to the right of the door
-            bunny.y = GROUND_Y - bunny.height; // Ensure on ground
-            bunny.vx = 0;
-            bunny.vy = 0;
-            bunny.isJumping = false;
-            currentHouseIndex = -1;
-            feedingHeart.show = false;
+         // Check collision: Bunny <-> Human (for feeding)
+         if (!hasBeenFedThisVisit &&
+             bunny.x < human.x + human.width &&
+             bunny.x + bunny.width > human.x &&
+             bunny.y + bunny.height > human.y // Check Y overlap (simplified)
+             ) {
+                 hasBeenFedThisVisit = true;
+                 human.isFeeding = true;
+                 human.feedTimer = human.feedDuration;
+                 // Spawn heart particles! <3
+                 spawnParticles(bunny.x + bunny.width/2, bunny.y + bunny.height/2, 15, '#FF69B4', 'heart');
+                 spawnParticles(bunny.x + bunny.width/2, bunny.y + bunny.height/2, 5, '#FFDA63', 'sparkle');
+         }
+
+         // Update feeding animation timer
+         if (human.isFeeding) {
+             human.feedTimer--;
+             if (human.feedTimer <= 0) {
+                 human.isFeeding = false;
+             }
+         }
+
+        // Check collision: Bunny <-> Interior Door (for exiting)
+        let house = houses[currentHouseIndex];
+        if (bunny.x < house.interiorDoorX + house.interiorDoorWidth &&
+            bunny.x + bunny.width > house.interiorDoorX &&
+            bunny.y + bunny.height > house.interiorDoorY // Basic Y check
+            ) {
+                // --- EXIT HOUSE ---
+                gameState = 'outside';
+                // Place bunnies just outside the *exterior* door
+                bunny.x = house.doorX + house.doorWidth + 10;
+                bunny.y = GROUND_Y - bunny.height;
+                bunny.vx = 0; bunny.vy = 0; bunny.onGround = true;
+                sidekick.x = bunny.x + SIDEKICK_OFFSET_X;
+                sidekick.y = GROUND_Y - sidekick.height;
+                sidekick.vx = 0; sidekick.vy = 0; sidekick.onGround = true;
+                currentHouseIndex = -1;
         }
     }
 
     // --- Game Loop ---
+    let lastTime = 0;
+    function gameLoop(currentTime) {
+        const deltaTime = currentTime - lastTime; // (Optional: for frame-rate independent physics)
+        lastTime = currentTime;
+        const globalTime = currentTime / 1000; // Time in seconds for animations
 
-    function gameLoop() {
-        // Clear the canvas (important!)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Check game state and draw/update accordingly
         if (gameState === 'outside') {
-            // --- Draw Outside Scene ---
             drawSkyAndSun();
-            drawGround();
+            drawGroundAndFlowers();
             drawHouses();
-            drawBunny(); // Draw the movable bunny
-
-            // --- Update Outside Logic ---
+            // Draw sidekick first so main bunny overlaps if needed
+            drawSingleBunny(sidekick, globalTime);
+            drawSingleBunny(bunny, globalTime);
             updateOutside();
 
         } else if (gameState === 'inside') {
-            // --- Draw Inside Scene ---
             let house = houses[currentHouseIndex];
             drawInterior(house);
-            drawHuman(house);
-            drawBunnyInside(); // Draw the static bunny inside
-            drawFeedingAnimation();
-
-            // --- Update Inside Logic ---
-            updateInside();
+            drawHuman();
+            // Bunnies are drawn/updated together inside
+            drawBunnyAndSidekickInside(globalTime);
+            updateInside(); // Handle feeding trigger and exit check
         }
 
-        // Request the next frame
+         // Update and draw particles regardless of state
+         updateAndDrawParticles();
+
         requestAnimationFrame(gameLoop);
     }
 
-    // --- Event Listeners for Input ---
-
+    // --- Event Listeners ---
     document.addEventListener('keydown', function(e) {
-        // Only allow movement/jumping when outside
-        if (gameState === 'outside') {
-            if (e.code === 'ArrowLeft') {
-                keys.left = true;
-            } else if (e.code === 'ArrowRight') {
-                keys.right = true;
-            } else if (e.code === 'Space' && !bunny.isJumping) {
+        // Allow jump always if on ground, L/R depends on state
+        if (e.code === 'Space' && bunny.onGround) {
+             if (gameState === 'outside' || (gameState === 'inside' /* && allowJumpInside? No. */ )) {
                 bunny.vy = JUMP_FORCE;
                 bunny.isJumping = true;
-            }
+                bunny.onGround = false;
+                // Sidekick jumps too? Maybe slightly delayed or smaller jump?
+                // Let's keep sidekick Y lerping for now, it looks okay.
+             }
+        }
+
+        if (gameState === 'outside' || gameState === 'inside') { // Allow L/R inside now
+            if (e.code === 'ArrowLeft') keys.left = true;
+            else if (e.code === 'ArrowRight') keys.right = true;
         }
     });
 
     document.addEventListener('keyup', function(e) {
-        // Always register keyup to prevent stuck keys if state changes
-        if (e.code === 'ArrowLeft') {
-            keys.left = false;
-        } else if (e.code === 'ArrowRight') {
-            keys.right = false;
-        }
+        if (e.code === 'ArrowLeft') keys.left = false;
+        else if (e.code === 'ArrowRight') keys.right = false;
     });
 
-    // Polyfill for roundRect if needed (basic version)
-    if (!CanvasRenderingContext2D.prototype.roundRect) {
+    // --- Polyfills (keep for compatibility) ---
+    if (!CanvasRenderingContext2D.prototype.roundRect) { /* ... roundRect code ... */ } // Keep polyfill from V2
+     if (!CanvasRenderingContext2D.prototype.roundRect) {
         CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-            if (w < 2 * r) r = w / 2;
-            if (h < 2 * r) r = h / 2;
+            // Basic Polyfill - handles single radius object or number
+            if (typeof r === 'number') { r = [r, r, r, r]; }
+            else if (Array.isArray(r)) { if(r.length === 1) r = [r[0],r[0],r[0],r[0]]; }
+            else { r = [0,0,0,0];} // Default no radius
+
+            if (w < 2 * Math.max(r[0],r[1])) r[0]=r[1]=w/2; // Ensure radius isn't too big
+            if (h < 2 * Math.max(r[0],r[3])) r[0]=r[3]=h/2;
+            if (w < 2 * Math.max(r[2],r[3])) r[2]=r[3]=w/2;
+            if (h < 2 * Math.max(r[1],r[2])) r[1]=r[2]=h/2;
+
             this.beginPath();
-            this.moveTo(x+r, y);
-            this.arcTo(x+w, y,   x+w, y+h, r);
-            this.arcTo(x+w, y+h, x,   y+h, r);
-            this.arcTo(x,   y+h, x,   y,   r);
-            this.arcTo(x,   y,   x+w, y,   r);
+            this.moveTo(x+r[0], y);
+            this.arcTo(x+w, y,   x+w, y+h, r[1]);
+            this.arcTo(x+w, y+h, x,   y+h, r[2]);
+            this.arcTo(x,   y+h, x,   y,   r[3]);
+            this.arcTo(x,   y,   x+w, y,   r[0]);
             this.closePath();
             return this;
         }
     }
+     if (!CanvasRenderingContext2D.prototype.ellipse) { // Basic ellipse polyfill
+        CanvasRenderingContext2D.prototype.ellipse = function(x, y, radiusX, radiusY, rotation, startAngle, endAngle, antiClockwise) {
+            this.save();
+            this.translate(x, y);
+            this.rotate(rotation);
+            this.scale(radiusX, radiusY);
+            this.arc(0, 0, 1, startAngle, endAngle, antiClockwise);
+            this.restore();
+        }
+     }
 
 
-    // Start the game loop
-    console.log("Starting Cute Bunny Game for Paul!");
-    gameLoop();
+    // --- Start Game ---
+    console.log("Starting Bunny Pals Adventure! Cuteness Overload!");
+    requestAnimationFrame(gameLoop); // Use rAF for first call too
 
 </script>
 
