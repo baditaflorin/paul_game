@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Cute Bunny Game</title>
+<meta charset="UTF-8">
+<style>
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #f0f8ff; /* Light sky blue background */
+        font-family: sans-serif;
+        flex-direction: column; /* Stack canvas and instructions */
+    }
+    canvas {
+        border: 1px solid #000;
+        background-color: #90ee90; /* Light green grass area */
+    }
+    #instructions {
+        margin-top: 10px;
+        color: #333;
+    }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+<div id="instructions">
+    Use Left/Right Arrow keys to move. Press Spacebar to Jump. Enter a house door!
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Game Constants
+    const GRAVITY = 0.5;
+    const JUMP_FORCE = -10;
+    const MOVE_SPEED = 3;
+    const GROUND_Y = canvas.height - 50; // Ground level
+
+    // Bunny State
+    let bunny = {
+        x: 50,
+        y: GROUND_Y - 40, // Start slightly above ground
+        width: 30,
+        height: 40,
+        vx: 0, // Velocity X
+        vy: 0, // Velocity Y
+        isJumping: false,
+        color: '#d2b48c' // Tan color
+    };
+
+    // Houses State (simple objects with position and size)
+    let houses = [
+        { x: 200, y: GROUND_Y - 100, width: 100, height: 100, doorX: 235, doorWidth: 30, color: '#ffb6c1' }, // Light Pink
+        { x: 500, y: GROUND_Y - 120, width: 120, height: 120, doorX: 540, doorWidth: 40, color: '#add8e6' }  // Light Blue
+    ];
+
+    // Game Message
+    let message = {
+        text: "",
+        timer: 0
+    };
+
+    // Input State
+    let keys = {
+        left: false,
+        right: false
+    };
+
+    // --- Drawing Functions ---
+
+    function drawBunny() {
+        ctx.fillStyle = bunny.color;
+        // Body
+        ctx.fillRect(bunny.x, bunny.y, bunny.width, bunny.height);
+        // Ears (simple rectangles)
+        ctx.fillRect(bunny.x + 5, bunny.y - 15, 5, 15);
+        ctx.fillRect(bunny.x + bunny.width - 10, bunny.y - 15, 5, 15);
+        // Simple face (eyes)
+        ctx.fillStyle = 'black';
+        ctx.fillRect(bunny.x + 8, bunny.y + 10, 4, 4);
+        ctx.fillRect(bunny.x + bunny.width - 12, bunny.y + 10, 4, 4);
+    }
+
+    function drawHouses() {
+        houses.forEach(house => {
+            // House body
+            ctx.fillStyle = house.color;
+            ctx.fillRect(house.x, house.y, house.width, house.height);
+            // Roof (simple triangle)
+            ctx.fillStyle = '#a0522d'; // Sienna color for roof
+            ctx.beginPath();
+            ctx.moveTo(house.x, house.y);
+            ctx.lineTo(house.x + house.width / 2, house.y - house.height / 2);
+            ctx.lineTo(house.x + house.width, house.y);
+            ctx.closePath();
+            ctx.fill();
+            // Door
+            ctx.fillStyle = '#8b4513'; // Saddle brown for door
+            ctx.fillRect(house.doorX, house.y + house.height * 0.4, house.doorWidth, house.height * 0.6);
+        });
+    }
+
+    function drawGround() {
+        ctx.fillStyle = '#8b4513'; // Brown color for ground
+        ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+    }
+
+    function drawMessage() {
+        if (message.timer > 0) {
+            ctx.fillStyle = 'red';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(message.text, canvas.width / 2, 50);
+            message.timer--; // Decrease timer each frame
+        } else {
+            message.text = ""; // Clear message when timer runs out
+        }
+    }
+
+    // --- Game Logic ---
+
+    function update() {
+        // Handle horizontal movement
+        bunny.vx = 0;
+        if (keys.left) {
+            bunny.vx = -MOVE_SPEED;
+        }
+        if (keys.right) {
+            bunny.vx = MOVE_SPEED;
+        }
+        bunny.x += bunny.vx;
+
+        // Apply gravity
+        bunny.vy += GRAVITY;
+        bunny.y += bunny.vy;
+
+        // Ground collision
+        if (bunny.y + bunny.height > GROUND_Y) {
+            bunny.y = GROUND_Y - bunny.height;
+            bunny.vy = 0;
+            bunny.isJumping = false;
+        }
+
+        // Prevent moving off-screen (simple boundary)
+        if (bunny.x < 0) {
+            bunny.x = 0;
+        }
+        if (bunny.x + bunny.width > canvas.width) {
+            bunny.x = canvas.width - bunny.width;
+        }
+
+        // Check for entering houses
+        houses.forEach(house => {
+            // Check if bunny overlaps with the door area horizontally and is near ground
+            if (bunny.x < house.doorX + house.doorWidth &&
+                bunny.x + bunny.width > house.doorX &&
+                bunny.y + bunny.height >= house.y + house.height * 0.4 && // Bunny feet are near door bottom
+                !bunny.isJumping) { // Must be on the ground
+
+                // Show feeding message
+                message.text = "Yummy! <3";
+                message.timer = 120; // Show message for 120 frames (about 2 seconds)
+
+                // Optional: Move bunny slightly away or reset position
+                // bunny.x = 50; // Reset to start
+            }
+        });
+    }
+
+    // --- Game Loop ---
+
+    function gameLoop() {
+        // Clear the canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw elements
+        drawGround();
+        drawHouses();
+        drawBunny();
+        drawMessage();
+
+        // Update game state
+        update();
+
+        // Request the next frame
+        requestAnimationFrame(gameLoop);
+    }
+
+    // --- Event Listeners for Input ---
+
+    document.addEventListener('keydown', function(e) {
+        if (e.code === 'ArrowLeft') {
+            keys.left = true;
+        } else if (e.code === 'ArrowRight') {
+            keys.right = true;
+        } else if (e.code === 'Space' && !bunny.isJumping) {
+            bunny.vy = JUMP_FORCE;
+            bunny.isJumping = true;
+        }
+    });
+
+    document.addEventListener('keyup', function(e) {
+        if (e.code === 'ArrowLeft') {
+            keys.left = false;
+        } else if (e.code === 'ArrowRight') {
+            keys.right = false;
+        }
+    });
+
+    // Start the game loop
+    gameLoop();
+
+</script>
+
+</body>
+</html>
